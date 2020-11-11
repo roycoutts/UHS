@@ -1,0 +1,88 @@
+# Get-Input :: creates a simple InputBox and returns the Input value
+# ConvertFrom-UnixTime :: Convert Unix Seconds into Long / Short Date Formats
+# TimeSpanFrom-UnixTime :: Convert Unix Seconds into Long / Short Time Lapse Formats
+
+function Get-Input 
+{
+    [CmdletBinding()]
+    param (
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [String]$prompt,
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [String]$title,
+        [parameter ()]
+        [String]$default
+    )
+    [void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
+    $input = [Microsoft.VisualBasic.Interaction]::InputBox($prompt, $title, $default)
+    Return $input   
+}
+
+function ConvertFrom-UnixTime {
+    [CmdletBinding()]
+    param (
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$Seconds,
+
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateSet('Long','Short')]
+        [String]$Format
+    )
+
+     if ($Format -eq 'Long')  {Return [DateTime]$datetime = (Get-Date 01.01.1970)+([System.TimeSpan]::fromseconds($Seconds))}
+     if ($Format -eq 'Short') {Return [String]$datetime = ((Get-Date 01.01.1970)+([System.TimeSpan]::fromseconds($Seconds))).ToString()}
+
+    <#
+        PS> ConvertFrom-UnixTime -Seconds 1111111111 -Format Long
+
+            Friday, March 18, 2005 1:58:31 AM
+
+        PS> ConvertFrom-UnixTime -Seconds 1111111111 -Format short
+
+            3/18/2005 1:58:31 AM
+    #>
+ }
+
+function TimeSpanFrom-UnixTime {
+    [CmdletBinding()]
+    param (
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$Seconds,
+
+        [parameter (Mandatory,ValueFromPipelineByPropertyName)]
+        [ValidateSet('Long','Short')]
+        [String]$Format
+    )
+     
+    if ($Format -eq 'Long')  {
+        [String]$timespan = ''
+        $d = [timespan]::FromSeconds($Seconds).Days
+        $h = [timespan]::FromSeconds($Seconds).Hours
+        $m = [timespan]::FromSeconds($Seconds).Minutes
+        $s = [timespan]::FromSeconds($Seconds).Seconds
+        if ($d -lt 2) {$timespan = $timespan + $d + ' Day '   } else {$timespan = $timespan + $d + ' Days '   }
+        if ($h -lt 2) {$timespan = $timespan + $h + ' Hour '  } else {$timespan = $timespan + $h + ' Hours '  }
+        if ($m -lt 2) {$timespan = $timespan + $m + ' Minute '} else {$timespan = $timespan + $m + ' Minutes '}
+        if ($s -lt 2) {$timespan = $timespan + $s + ' Second '} else {$timespan = $timespan + $s + ' Seconds '}
+        Return [String]$timespan
+    }
+    if ($Format -eq 'Short') {
+        [String]$timespan = [timespan]::FromSeconds($Seconds).ToString()
+        Return [String]$timespan
+    } 
+
+    <#
+        PS> TimeSpanFrom-UnixTime -Seconds 111111 -Format Long
+            
+            1 Day 6 Hours 51 Minutes 51 Seconds 
+
+        PS> TimeSpanFrom-UnixTime -Seconds 111111 -Format Short
+            
+            1.06:51:51
+    #>
+ }
+
