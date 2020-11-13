@@ -1,6 +1,7 @@
 # Get-Input :: creates a simple InputBox and returns the Input value
 # ConvertFrom-UnixTime :: Convert Unix Seconds into Long / Short Date Formats
 # TimeSpanFrom-UnixTime :: Convert Unix Seconds into Long / Short Time Lapse Formats
+# Get-ConsoleColors :: Returns Available Color Names from the PowerShell Console
 
 function Get-Input 
 {
@@ -86,3 +87,50 @@ function TimeSpanFrom-UnixTime {
     #>
  }
 
+Function Get-ConsoleColors {
+
+    <#
+    .SYNOPSIS
+        Displays all color options on the screen at one time
+
+    .DESCRIPTION
+        Displays all color options on the screen at one time
+
+    .EXAMPLE
+        Get-ConsoleColors
+
+    .NOTES
+        Name       : Get-ConsoleColors.ps1
+        Author     : Mike Kanakos
+        Version    : 1.0.3
+        DateCreated: 2019-07-23
+        DateUpdated: 2019-07-23
+
+        LASTEDIT:
+        - Add loops for foreground and background colors
+        - output foreground and background colors for easy selection
+        
+    .LINK
+        https://github.com/compwiz32/PowerShell
+
+
+#>
+
+[CmdletBinding()]
+    Param()
+    
+    $List = [enum]::GetValues([System.ConsoleColor]) 
+    
+    ForEach ($Color in $List){
+        Write-Host "      $Color" -ForegroundColor $Color -NonewLine
+        Write-Host "" 
+        
+    } #end foreground color ForEach loop
+
+    ForEach ($Color in $List){
+        Write-Host "                   " -backgroundColor $Color -noNewLine
+        Write-Host "   $Color"
+                
+    } #end background color ForEach loop
+    
+} #end function
