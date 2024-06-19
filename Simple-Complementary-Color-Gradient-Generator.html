@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple-Complementary-Color-Gradient-Generator</title>
+    <style>
+        table {
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        td {
+            width: 150px;
+            height: 75px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <input type="color" id="startColorPicker" value="#FA3D81">
+    <input type="text" id="startColor" placeholder="Starting Color (hex)">
+    <input type="number" id="steps" placeholder="Number of Steps">
+    <button onclick="generateColors()">Create Colors</button>
+    <h2>TINTS</h2>
+    <table id="tintsTable"><tr id="tintsRow"></tr></table>
+    <h2>SHADES</h2>
+    <table id="shadesTable"><tr id="shadesRow"></tr></table>
+    <h2>COMPLEMENTARY</h2>
+    <table id="complementaryTable"><tr id="complementaryRow"></tr></table>
+    <h2>COMPLEMENTARY TINTS</h2>
+    <table id="complementaryTintsTable"><tr id="complementaryTintsRow"></tr></table>
+    <h2>COMPLEMENTARY SHADES</h2>
+    <table id="complementaryShadesTable"><tr id="complementaryShadesRow"></tr></table>
+
+    <script>
+        document.getElementById('startColorPicker').oninput = function() {
+            document.getElementById('startColor').value = this.value.slice(1);
+        };
+
+        function generateColors() {
+            var startColor = document.getElementById('startColor').value;
+            var steps = document.getElementById('steps').value;
+
+            var startRGB = hexToRgb(startColor);
+            var endRGBTints = {r: 255, g: 255, b: 255};  // White
+            var endRGBShades = {r: 0, g: 0, b: 0};  // Black
+            var complementaryColor = getComplementaryColor(startRGB);
+
+            var tintsRow = document.getElementById('tintsRow');
+            var shadesRow = document.getElementById('shadesRow');
+            var complementaryRow = document.getElementById('complementaryRow');
+            var complementaryTintsRow = document.getElementById('complementaryTintsRow');
+            var complementaryShadesRow = document.getElementById('complementaryShadesRow');
+            tintsRow.innerHTML = '';  // Clear the row
+            shadesRow.innerHTML = '';  // Clear the row
+            complementaryRow.innerHTML = '';  // Clear the row
+            complementaryTintsRow.innerHTML = '';  // Clear the row
+            complementaryShadesRow.innerHTML = '';  // Clear the row
+
+            for (var i = 0; i <= steps; i++) {
+                var rTints = Math.round(startRGB.r + (endRGBTints.r - startRGB.r) * i / steps);
+                var gTints = Math.round(startRGB.g + (endRGBTints.g - startRGB.g) * i / steps);
+                var bTints = Math.round(startRGB.b + (endRGBTints.b - startRGB.b) * i / steps);
+
+                var rShades = Math.round(startRGB.r + (endRGBShades.r - startRGB.r) * i / steps);
+                var gShades = Math.round(startRGB.g + (endRGBShades.g - startRGB.g) * i / steps);
+                var bShades = Math.round(startRGB.b + (endRGBShades.b - startRGB.b) * i / steps);
+
+                var colorTints = rgbToHex(rTints, gTints, bTints);
+                var colorShades = rgbToHex(rShades, gShades, bShades);
+
+                addToRow(tintsRow, colorTints);
+                addToRow(shadesRow, colorShades);
+            }
+
+            // Add the original and complementary colors to the complementary row
+            addToRow(complementaryRow, startColor);
+            var complementaryColorHex = rgbToHex(complementaryColor.r, complementaryColor.g, complementaryColor.b);
+            addToRow(complementaryRow, complementaryColorHex);
+
+            // Generate tints and shades for the complementary color
+            for (var i = 0; i <= steps; i++) {
+                var rTints = Math.round(complementaryColor.r + (endRGBTints.r - complementaryColor.r) * i / steps);
+                var gTints = Math.round(complementaryColor.g + (endRGBTints.g - complementaryColor.g) * i / steps);
+                var bTints = Math.round(complementaryColor.b + (endRGBTints.b - complementaryColor.b) * i / steps);
+
+                var rShades = Math.round(complementaryColor.r + (endRGBShades.r - complementaryColor.r) * i / steps);
+                var gShades = Math.round(complementaryColor.g + (endRGBShades.g - complementaryColor.g) * i / steps);
+                var bShades = Math.round(complementaryColor.b + (endRGBShades.b - complementaryColor.b) * i / steps);
+
+                var colorTints = rgbToHex(rTints, gTints, bTints);
+                var colorShades = rgbToHex(rShades, gShades, bShades);
+
+                addToRow(complementaryTintsRow, colorTints);
+                addToRow(complementaryShadesRow, colorShades);
+            }
+        }
+
+        function addToRow(row, color) {
+            var cell = row.insertCell(-1);
+            cell.style.backgroundColor = color;
+            cell.style.color = isDark(color) ? 'white' : 'black';
+            cell.textContent = color;
+        }
+
+        function hexToRgb(hex) {
+            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function isDark(color) {
+            var rgb = hexToRgb(color);
+            // Calculate the brightness of the color
+            var brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+            return brightness < 128;  // Return true if the color is dark
+        }
+
+        function getComplementaryColor(rgb) {
+            return {
+                r: 255 - rgb.r,
+                g: 255 - rgb.g,
+                b: 255 - rgb.b
+            };
+        }
+    </script>
+</body>
+</html>
