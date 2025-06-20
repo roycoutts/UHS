@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pool Chemistry Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .parameter-card {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .parameter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .action-btn {
+            transition: all 0.2s ease;
+        }
+        .action-btn:hover {
+            transform: scale(1.05);
+        }
+        .modal {
+            transition: all 0.3s ease;
+            opacity: 0;
+            visibility: hidden;
+        }
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .progress-tracker {
+            height: 4px;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-blue-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-blue-800 mb-2">
+                <i class="fas fa-swimming-pool mr-2"></i>Pool Chemistry Control
+            </h1>
+            <p class="text-blue-600">Follow the steps to balance your pool water chemistry</p>
+            
+            <div class="mt-6 mb-8 bg-gray-200 rounded-full h-2 w-full max-w-2xl mx-auto">
+                <div id="progressBar" class="progress-tracker bg-blue-500 rounded-full h-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- pH Card -->
+            <div class="parameter-card bg-white rounded-xl p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-flask text-blue-600"></i>
+                    </div>
+                    <h2 id="ph" class="text-xl font-semibold text-gray-800">pH</h2>
+                </div>
+                <div class="flex justify-between space-x-2">
+                    <button id="phlo" class="action-btn flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-down mr-1"></i> LO
+                    </button>
+                    <button id="phok" class="action-btn flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-check mr-1"></i> OK
+                    </button>
+                    <button id="phhi" class="action-btn flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-up mr-1"></i> HI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Total Alkalinity Card -->
+            <div class="parameter-card bg-white rounded-xl p-6 opacity-50 pointer-events-none" id="taCard">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-tint text-blue-600"></i>
+                    </div>
+                    <h2 id="ta" class="text-xl font-semibold text-gray-800">Total Alkalinity</h2>
+                </div>
+                <div class="flex justify-between space-x-2">
+                    <button id="talo" class="action-btn flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-down mr-1"></i> LO
+                    </button>
+                    <button id="taok" class="action-btn flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-check mr-1"></i> OK
+                    </button>
+                    <button id="tahi" class="action-btn flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-up mr-1"></i> HI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chlorine Card -->
+            <div class="parameter-card bg-white rounded-xl p-6 opacity-50 pointer-events-none" id="chCard">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-biohazard text-blue-600"></i>
+                    </div>
+                    <h2 id="ch" class="text-xl font-semibold text-gray-800">Total Chlorine/Free Chlorine</h2>
+                </div>
+                <div class="flex justify-between space-x-2">
+                    <button id="chlo" class="action-btn flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-down mr-1"></i> LO
+                    </button>
+                    <button id="chok" class="action-btn flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-check mr-1"></i> OK
+                    </button>
+                    <button id="chhi" class="action-btn flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-up mr-1"></i> HI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cyanuric Acid Card -->
+            <div class="parameter-card bg-white rounded-xl p-6 opacity-50 pointer-events-none" id="caCard">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-atom text-blue-600"></i>
+                    </div>
+                    <h2 id="ca" class="text-xl font-semibold text-gray-800">Cyanuric Acid</h2>
+                </div>
+                <div class="flex justify-between space-x-2">
+                    <button id="calo" class="action-btn flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-down mr-1"></i> LO
+                    </button>
+                    <button id="caok" class="action-btn flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-check mr-1"></i> OK
+                    </button>
+                    <button id="cahi" class="action-btn flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-up mr-1"></i> HI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Total Hardness Card -->
+            <div class="parameter-card bg-white rounded-xl p-6 opacity-50 pointer-events-none" id="haCard">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <i class="fas fa-weight-hanging text-blue-600"></i>
+                    </div>
+                    <h2 id="ha" class="text-xl font-semibold text-gray-800">Total Hardness</h2>
+                </div>
+                <div class="flex justify-between space-x-2">
+                    <button id="halo" class="action-btn flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-down mr-1"></i> LO
+                    </button>
+                    <button id="haok" class="action-btn flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-check mr-1"></i> OK
+                    </button>
+                    <button id="hahi" class="action-btn flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-2 px-4 rounded-lg font-medium">
+                        <i class="fas fa-arrow-up mr-1"></i> HI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Final Message Card (hidden initially) -->
+            <div class="parameter-card bg-white rounded-xl p-6 hidden" id="finalCard">
+                <div class="flex flex-col items-center justify-center h-full">
+                    <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                        <i class="fas fa-check-circle text-green-500 text-3xl"></i>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-800 mb-2">Congratulations!</h2>
+                    <p id="finalMessage" class="text-gray-600 text-center">Your pool water chemistry is now balanced.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-800" id="modalTitle">Action Required</h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p class="text-gray-700 mb-6" id="modalMessage"></p>
+            <div class="flex justify-end">
+                <button id="confirmModal" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-medium">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Progress tracking
+        let currentStep = 0;
+        const totalSteps = 5;
+        const progressBar = document.getElementById('progressBar');
+        
+        // Update progress bar
+        function updateProgress(step) {
+            const progress = (step / totalSteps) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+        
+        // Modal functions
+        const modal = document.getElementById('modal');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalTitle = document.getElementById('modalTitle');
+        const closeModal = document.getElementById('closeModal');
+        const confirmModal = document.getElementById('confirmModal');
+        
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            modal.classList.add('active');
+        }
+        
+        function hideModal() {
+            modal.classList.remove('active');
+        }
+        
+        closeModal.addEventListener('click', hideModal);
+        confirmModal.addEventListener('click', hideModal);
+        
+        // Parameter cards
+        const taCard = document.getElementById('taCard');
+        const chCard = document.getElementById('chCard');
+        const caCard = document.getElementById('caCard');
+        const haCard = document.getElementById('haCard');
+        const finalCard = document.getElementById('finalCard');
+        
+        // Enable next card
+        function enableNextCard(currentCardId) {
+            if (currentCardId === 'ph') {
+                taCard.classList.remove('opacity-50', 'pointer-events-none');
+                currentStep = 1;
+            } else if (currentCardId === 'ta') {
+                chCard.classList.remove('opacity-50', 'pointer-events-none');
+                currentStep = 2;
+            } else if (currentCardId === 'ch') {
+                caCard.classList.remove('opacity-50', 'pointer-events-none');
+                currentStep = 3;
+            } else if (currentCardId === 'ca') {
+                haCard.classList.remove('opacity-50', 'pointer-events-none');
+                currentStep = 4;
+            } else if (currentCardId === 'ha') {
+                // Show final message
+                document.querySelectorAll('.parameter-card').forEach(card => {
+                    card.classList.add('hidden');
+                });
+                finalCard.classList.remove('hidden');
+                currentStep = 5;
+            }
+            updateProgress(currentStep);
+        }
+        
+        // Button event listeners
+        document.getElementById('phlo').addEventListener('click', () => {
+            showModal('pH Too Low', 'Add pH Increaser (Soda Ash)');
+        });
+        
+        document.getElementById('phhi').addEventListener('click', () => {
+            showModal('pH Too High', 'Add pH Decreaser (Muriatic Acid / Dry Acid)');
+        });
+        
+        document.getElementById('phok').addEventListener('click', () => {
+            showModal('pH Balanced', 'TEST ALKALINITY');
+            enableNextCard('ph');
+        });
+        
+        document.getElementById('talo').addEventListener('click', () => {
+            showModal('Alkalinity Too Low', 'Add Alkalinity Increaser (Baking Soda)');
+        });
+        
+        document.getElementById('tahi').addEventListener('click', () => {
+            showModal('Alkalinity Too High', 'Add Acid + Aerate Water');
+        });
+        
+        document.getElementById('taok').addEventListener('click', () => {
+            showModal('Alkalinity Balanced', 'TEST CHLORINE');
+            enableNextCard('ta');
+        });
+        
+        document.getElementById('chlo').addEventListener('click', () => {
+            showModal('Chlorine Too Low', 'Add Chlorine or Shock Pool');
+        });
+        
+        document.getElementById('chhi').addEventListener('click', () => {
+            showModal('Chlorine Too High', 'Let Dissipate or use Neutralizer');
+        });
+        
+        document.getElementById('chok').addEventListener('click', () => {
+            showModal('Chlorine Balanced', 'TEST CYANURIC ACID');
+            enableNextCard('ch');
+        });
+        
+        document.getElementById('calo').addEventListener('click', () => {
+            showModal('Cyanuric Acid Too Low', 'Add CYA Stabilizer');
+        });
+        
+        document.getElementById('cahi').addEventListener('click', () => {
+            showModal('Cyanuric Acid Too High', 'Dilute (Drain & Refill)');
+        });
+        
+        document.getElementById('caok').addEventListener('click', () => {
+            showModal('Cyanuric Acid Balanced', 'TEST TOTAL HARDNESS');
+            enableNextCard('ca');
+        });
+        
+        document.getElementById('halo').addEventListener('click', () => {
+            showModal('Hardness Too Low', 'Add Calcium Hardness Increaser');
+        });
+        
+        document.getElementById('hahi').addEventListener('click', () => {
+            showModal('Hardness Too High', 'Partially Drain & Refill');
+        });
+        
+        document.getElementById('haok').addEventListener('click', () => {
+            showModal('Hardness Balanced', 'WATER CHEMISTRY BALANCED');
+            enableNextCard('ha');
+            document.getElementById('finalMessage').textContent = 'WATER CHEMISTRY BALANCED';
+        });
+    </script>
+</body>
+</html>
