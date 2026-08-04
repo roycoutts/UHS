@@ -1,4 +1,4 @@
-﻿Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 function Out-PDF {
@@ -279,6 +279,20 @@ $btnConvert.Add_Click({
     if ([string]::IsNullOrWhiteSpace($txtOutput.Text)) {
         [System.Windows.Forms.MessageBox]::Show("Please choose an output destination for your PDF.", "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
         return
+    }
+    if (Test-Path $txtOutput.Text) {
+        Add-Type -AssemblyName PresentationFramework
+        $title = "WARNING: FILE EXISTS"
+        $msg = "WARNING: FILE EXISTS`n`nDo you wish to overwrite the previous file?"
+        $button = [System.Windows.MessageBoxButton]::YesNo
+        $image= [System.Windows.MessageBoxImage]::Warning
+        $Response = [System.Windows.MessageBox]::Show($msg,$title,$button,$image)
+        if ($Response -eq "Yes") {
+            Remove-Item -Path $txtOutput.Text -Force
+        } 
+        else {
+            return
+        }
     }
 
     try {
