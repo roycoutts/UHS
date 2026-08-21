@@ -1,0 +1,1502 @@
+[
+    {
+        "Name":  "Adult Community Free Clinic at UHS Primary Care Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-3281",
+        "Address1":  "33 Mitchell Ave.",
+        "Address2":  "Suite 102",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "Cardiac Rehabilitation UHS Delaware Valley Hospital",
+        "Location":  null,
+        "Phone":  "607-865-2155",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "Delaware Valley Hospital Community Pharmacy",
+        "Location":  null,
+        "Phone":  "607-865-2781",
+        "Address1":  "121 Stockton Ave.",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "Fresenius Kidney Care Penn Ave",
+        "Location":  null,
+        "Phone":  "607-762-2015",
+        "Address1":  "65 Pennsylvania Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "Fresenius Kidney Care Vestal",
+        "Location":  null,
+        "Phone":  "800-881-5101",
+        "Address1":  "116 North Jensen Road",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "Pediatric Cardiology Apalachin",
+        "Location":  null,
+        "Phone":  "315-214-7700",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "Rilloraza Plastic Surgery",
+        "Location":  null,
+        "Phone":  "607-217-4677",
+        "Address1":  "169 Riverside Drive",
+        "Address2":  "Suite 300",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13905"
+    },
+    {
+        "Name":  "UHS Addiction Medicine",
+        "Location":  null,
+        "Phone":  "607-762-3288",
+        "Address1":  "Binghamton General Hospital",
+        "Address2":  "10-42 Mitchell Avenue",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Ambulatory Surgery Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-2151",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Ambulatory Surgery Center at Wilson Place",
+        "Location":  null,
+        "Phone":  "607-763-6969",
+        "Address1":  "52 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Ambulatory Surgery Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4292",
+        "Address1":  "179 North Broad St",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Ambulatory Surgery Wilson",
+        "Location":  null,
+        "Phone":  "607-763-6608",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Audiology",
+        "Location":  null,
+        "Phone":  "607-763-6554",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 300",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Binghamton General Hospital",
+        "Location":  null,
+        "Phone":  "607-762-2200",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Binghamton, NY - Comprehensive Psychiatric Emergency Program CPEP",
+        "Location":  null,
+        "Phone":  "607-762-2302",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Breast Center",
+        "Location":  null,
+        "Phone":  "607-763-5523",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  "Suite 300",
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Cardiac Rehabilitation Binghamton General Hospital",
+        "Location":  null,
+        "Phone":  "607-762-2178",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  "Phelps Hall",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Cardiac Rehabilitation Chenango Memorial Hospital",
+        "Location":  null,
+        "Phone":  null,
+        "Address1":  "179 N. Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Cardiology Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4215",
+        "Address1":  "179 North Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Cardiothoracic",
+        "Location":  null,
+        "Phone":  "607-763-6580",
+        "Address1":  "30 Harrison St., Suite 355",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Center for Advanced Wound Care",
+        "Location":  null,
+        "Phone":  "607-762-3131",
+        "Address1":  "10-42 Mitchell Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Chenango Memorial Hospital",
+        "Location":  null,
+        "Phone":  "607-337-4111",
+        "Address1":  "179 N. Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Chenango Memorial Hospital GI Lab",
+        "Location":  null,
+        "Phone":  "607-337-4800",
+        "Address1":  "179 North Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Chiropractic",
+        "Location":  null,
+        "Phone":  "607-754-4850",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Concussion Center",
+        "Location":  null,
+        "Phone":  "607-771-2220",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Delaware Valley Hospital",
+        "Location":  null,
+        "Phone":  "607-865-2100",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Delaware Valley Hospital GI Lab",
+        "Location":  null,
+        "Phone":  "607-865-2400",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Dental Center Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-2005",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Dermatology",
+        "Location":  null,
+        "Phone":  "607-658-1003",
+        "Address1":  "200 Front Street",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Diabetes and Endocrinology Apalachin",
+        "Location":  null,
+        "Phone":  "607-763-6092",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Diabetes and Endocrinology Center",
+        "Location":  null,
+        "Phone":  "607-763-6092",
+        "Address1":  "93 Pennsylvania Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Diabetes and Endocrinology Upper Front Street",
+        "Location":  null,
+        "Phone":  "607-763-6092",
+        "Address1":  "1290 Upper Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Emergency \u0026 Trauma Services",
+        "Location":  null,
+        "Phone":  "607-763-6311",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Gastroenterology Apalachin",
+        "Location":  null,
+        "Phone":  "607-772-0639",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Gastroenterology Binghamton",
+        "Location":  null,
+        "Phone":  "607-772-0639",
+        "Address1":  "40 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Geriatrics Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4056",
+        "Address1":  "4 Newton Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Gynecology",
+        "Location":  null,
+        "Phone":  "607-797-4496",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Hand Therapy",
+        "Location":  null,
+        "Phone":  "607-762-2176",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Heart \u0026 Vascular Institute Johnson City - Cardiology Services",
+        "Location":  null,
+        "Phone":  "607-763-6580",
+        "Address1":  "30 Harrison St.",
+        "Address2":  "Suite 250",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Heart \u0026 Vascular Institute Vestal",
+        "Location":  null,
+        "Phone":  "607-763-6580",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Home Care",
+        "Location":  null,
+        "Phone":  "607-763-5600",
+        "Address1":  "601 Riverside Drive",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Home Care Norwich",
+        "Location":  null,
+        "Phone":  "607-336-5130",
+        "Address1":  "26 Conkey Avenue",
+        "Address2":  "Eaton Center",
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Home Dialysis",
+        "Location":  null,
+        "Phone":  "607-762-2285",
+        "Address1":  "65 Pennsylvania Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Imaging Binghamton General Hospital",
+        "Location":  null,
+        "Phone":  "607-762-2243",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Imaging Delaware Valley Hospital",
+        "Location":  null,
+        "Phone":  "607-865-2126",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Imaging Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4999",
+        "Address1":  "179 N. Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Imaging Owego",
+        "Location":  null,
+        "Phone":  null,
+        "Address1":  "42 West Main Street",
+        "Address2":  null,
+        "City":  "Owego",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Imaging Sidney",
+        "Location":  null,
+        "Phone":  "607-337-4669",
+        "Address1":  "44 Pearl Street",
+        "Address2":  null,
+        "City":  "Sidney",
+        "State":  "NY",
+        "Zip":  "13838"
+    },
+    {
+        "Name":  "UHS Imaging UHS Chenango Memorial Hospital",
+        "Location":  null,
+        "Phone":  "607-337-4149",
+        "Address1":  "179 North Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Imaging Vestal",
+        "Location":  null,
+        "Phone":  "607-240-2900",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Infectious Disease",
+        "Location":  null,
+        "Phone":  "607-240-2951",
+        "Address1":  "1290 Upper Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13905"
+    },
+    {
+        "Name":  "UHS Infusion Center",
+        "Location":  null,
+        "Phone":  "607-763-5855",
+        "Address1":  "10-42 Mitchell Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Lab Services Binghamton General Hospital",
+        "Location":  null,
+        "Phone":  "607-762-2361",
+        "Address1":  "10-42 Mitchell Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Lab Services Candor",
+        "Location":  null,
+        "Phone":  "607-659-7272",
+        "Address1":  "54 Main Street",
+        "Address2":  null,
+        "City":  "Candor",
+        "State":  "NY",
+        "Zip":  "13743"
+    },
+    {
+        "Name":  "UHS Lab Services Clinton Street",
+        "Location":  null,
+        "Phone":  "607-762-2660",
+        "Address1":  "142 Clinton Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13905"
+    },
+    {
+        "Name":  "UHS Lab Services Deposit",
+        "Location":  null,
+        "Phone":  "607-467-4195",
+        "Address1":  "53 Pine Street",
+        "Address2":  null,
+        "City":  "Deposit",
+        "State":  "NY",
+        "Zip":  "13754"
+    },
+    {
+        "Name":  "UHS Lab Services Endicott",
+        "Location":  null,
+        "Phone":  "607-754-2718",
+        "Address1":  "1302 East Main Street",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Lab Services Newark Valley",
+        "Location":  null,
+        "Phone":  "607-642-5211",
+        "Address1":  "119 Whig Street",
+        "Address2":  null,
+        "City":  "Newark Valley",
+        "State":  "NY",
+        "Zip":  "13811"
+    },
+    {
+        "Name":  "UHS Lab Services Owego",
+        "Location":  null,
+        "Phone":  "607-687-7100",
+        "Address1":  "42 West Main Street",
+        "Address2":  "Price Chopper Plaza",
+        "City":  "Owego",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Lab Services Sidney",
+        "Location":  null,
+        "Phone":  "607-337-4671",
+        "Address1":  "44 Pearl Street",
+        "Address2":  "Gelder Medical Building",
+        "City":  "Sidney",
+        "State":  "NY",
+        "Zip":  "13838"
+    },
+    {
+        "Name":  "UHS Lab Services UHS Chenango Memorial Hospital",
+        "Location":  null,
+        "Phone":  "607-337-4254",
+        "Address1":  "179 North Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Lab Services UHS Delaware Valley Hospital",
+        "Location":  null,
+        "Phone":  "607-865-2165",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Lab Services Upper Front Street",
+        "Location":  null,
+        "Phone":  "607-722-3417",
+        "Address1":  "1290 Upper Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Lab Services Vestal",
+        "Location":  null,
+        "Phone":  "607-798-7272",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Lab Services Wilson Medical Center",
+        "Location":  null,
+        "Phone":  "607-763-6151",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Lab Services Windsor",
+        "Location":  null,
+        "Phone":  "607-655-1230",
+        "Address1":  "5 College Avenue",
+        "Address2":  null,
+        "City":  "Windsor",
+        "State":  "NY",
+        "Zip":  "13865"
+    },
+    {
+        "Name":  "UHS Medical Oncology",
+        "Location":  null,
+        "Phone":  "607-762-2050",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  "Krembs 6",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Medical Oncology",
+        "Location":  null,
+        "Phone":  "607-763-6850",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 100",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Nephrology Apalachin",
+        "Location":  null,
+        "Phone":  "607-762-2251",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Nephrology Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-2251",
+        "Address1":  "27 Park Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Nephrology Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4580",
+        "Address1":  "179 N. Broad St.",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Neuro-Interventional Surgery",
+        "Location":  null,
+        "Phone":  "607-763-8724",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 400",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Neurology",
+        "Location":  null,
+        "Phone":  "607-240-2140",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 320",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Neurosurgery",
+        "Location":  null,
+        "Phone":  "607-729-4942",
+        "Address1":  "46 Harrison St.",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS OB/GYN",
+        "Location":  null,
+        "Phone":  "607-763-8088",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Wilson Square",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS OB/GYN Sidney",
+        "Location":  null,
+        "Phone":  "607-561-2200",
+        "Address1":  "44 Pearl Street",
+        "Address2":  null,
+        "City":  "Sidney",
+        "State":  "NY",
+        "Zip":  "13838"
+    },
+    {
+        "Name":  "UHS Occupational Medicine",
+        "Location":  null,
+        "Phone":  "607-762-2333",
+        "Address1":  "33 Mitchell Avenue",
+        "Address2":  "Summit Building",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Occupational Medicine Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4777",
+        "Address1":  "East Main/Tops Plaza",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Orthopedic Center",
+        "Location":  null,
+        "Phone":  "607-771-2220",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Orthopedics Apalachin",
+        "Location":  null,
+        "Phone":  "607-771-2220",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Orthopedics Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4950",
+        "Address1":  "4 Newton Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Otolaryngology (ENT)",
+        "Location":  null,
+        "Phone":  "607-763-8102",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Wilson Square Suite 355",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Outpatient Mental Health Clinic",
+        "Location":  null,
+        "Phone":  "607-762-2340",
+        "Address1":  "33 Mitchell Avenue",
+        "Address2":  "Summit Building Sute G80",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Pediatrics Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-2468",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  "Binghamton General Hospital",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Pediatrics Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4139",
+        "Address1":  "4 Newton Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Pediatrics Sidney",
+        "Location":  null,
+        "Phone":  "607-561-2200",
+        "Address1":  "44 Pearl Street",
+        "Address2":  null,
+        "City":  "Sidney",
+        "State":  "NY",
+        "Zip":  "13838"
+    },
+    {
+        "Name":  "UHS Pediatrics Upper Front Street",
+        "Location":  null,
+        "Phone":  "607-648-6667",
+        "Address1":  "1290 Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Pediatrics Vestal",
+        "Location":  null,
+        "Phone":  "607-797-1251",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Perinatal Center",
+        "Location":  null,
+        "Phone":  "607-763-6101",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Pharmacy Endicott",
+        "Location":  null,
+        "Phone":  "607-754-2474",
+        "Address1":  "1302 East Main Street",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Pharmacy Johnson City",
+        "Location":  null,
+        "Phone":  "607-763-6775",
+        "Address1":  "345 Main St",
+        "Address2":  "Suite B",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Pharmacy Summit Building",
+        "Location":  null,
+        "Phone":  "607-352-5950",
+        "Address1":  "33 Mitchell Ave",
+        "Address2":  "Suite 108",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Pharmacy Vestal",
+        "Location":  null,
+        "Phone":  "607-770-7358",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Physical Medicine",
+        "Location":  null,
+        "Phone":  "607-771-2220",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation at Ideal",
+        "Location":  null,
+        "Phone":  "607-762-2176",
+        "Address1":  "513 Davis Avenue",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Binghamton General Hospital",
+        "Location":  null,
+        "Phone":  "607-762-2100",
+        "Address1":  "10-42 Mitchell Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Endicott",
+        "Location":  null,
+        "Phone":  "607-757-2600",
+        "Address1":  "1302 East Main Street",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Greene",
+        "Location":  null,
+        "Phone":  "607-422-3830",
+        "Address1":  "26 Genesee Street",
+        "Address2":  null,
+        "City":  "Greene",
+        "State":  "NY",
+        "Zip":  "13778"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4227",
+        "Address1":  "26 Conkey Avenue",
+        "Address2":  "Eaton Center",
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Owego",
+        "Location":  null,
+        "Phone":  "607-762-2176",
+        "Address1":  "941 State Route 17C",
+        "Address2":  "Suite 1",
+        "City":  "Owego",
+        "State":  "NY",
+        "Zip":  "13827"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Upper Front Street",
+        "Location":  null,
+        "Phone":  "607- 762-2176",
+        "Address1":  "1290 Upper Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Vestal",
+        "Location":  null,
+        "Phone":  "607-762-2176",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  "2nd Floor",
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Physical Therapy \u0026 Rehabilitation Walton",
+        "Location":  null,
+        "Phone":  "607-865-2155",
+        "Address1":  "1 Titus Place",
+        "Address2":  "Delaware Valley Hospital",
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Plastic \u0026 Reconstructive Surgery/Hand Surgery",
+        "Location":  null,
+        "Phone":  "607-772-6266",
+        "Address1":  "10-42 Mitchell Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Podiatry Apalachin",
+        "Location":  null,
+        "Phone":  "607-772-8772",
+        "Address1":  "8836 NY-434",
+        "Address2":  null,
+        "City":  "Apalachin",
+        "State":  "NY",
+        "Zip":  "13732"
+    },
+    {
+        "Name":  "UHS Podiatry Robinson Street",
+        "Location":  null,
+        "Phone":  "607-772-8772",
+        "Address1":  "160 Robinson St.",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13904"
+    },
+    {
+        "Name":  "UHS Podiatry Vestal",
+        "Location":  null,
+        "Phone":  "607-772-8772",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Primary Care Binghamton",
+        "Location":  null,
+        "Phone":  "607-762-3281",
+        "Address1":  "33 Mitchell Avenue",
+        "Address2":  "Summit Bldg",
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Primary Care Candor",
+        "Location":  null,
+        "Phone":  "607-659-7272",
+        "Address1":  "54 Main Street",
+        "Address2":  null,
+        "City":  "Candor",
+        "State":  "NY",
+        "Zip":  "13743"
+    },
+    {
+        "Name":  "UHS Primary Care Clinton Street",
+        "Location":  null,
+        "Phone":  "607-762-2660",
+        "Address1":  "142 Clinton Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13905"
+    },
+    {
+        "Name":  "UHS Primary Care Deposit",
+        "Location":  null,
+        "Phone":  "607-467-4195",
+        "Address1":  "53 Pine Street",
+        "Address2":  null,
+        "City":  "Deposit",
+        "State":  "NY",
+        "Zip":  "13754"
+    },
+    {
+        "Name":  "UHS Primary Care Downsville",
+        "Location":  null,
+        "Phone":  "607-363-2517",
+        "Address1":  "28315 State Hwy 206",
+        "Address2":  null,
+        "City":  "Downsville",
+        "State":  "NY",
+        "Zip":  "13755"
+    },
+    {
+        "Name":  "UHS Primary Care Endicott",
+        "Location":  null,
+        "Phone":  "607-754-2323",
+        "Address1":  "1302 East Main Street",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Primary Care Endwell",
+        "Location":  null,
+        "Phone":  "607-757-0444",
+        "Address1":  "800 Hooper Road",
+        "Address2":  null,
+        "City":  "Endwell",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Primary Care Greene",
+        "Location":  null,
+        "Phone":  "607-656-4115",
+        "Address1":  "15 Birdsall Street",
+        "Address2":  null,
+        "City":  "Greene",
+        "State":  "NY",
+        "Zip":  "13778"
+    },
+    {
+        "Name":  "UHS Primary Care Johnson City",
+        "Location":  null,
+        "Phone":  "607-763-6075",
+        "Address1":  "507 Main Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Primary Care Newark Valley",
+        "Location":  null,
+        "Phone":  "607-642-5211",
+        "Address1":  "119 Whig Street",
+        "Address2":  null,
+        "City":  "Newark Valley",
+        "State":  "NY",
+        "Zip":  "13811"
+    },
+    {
+        "Name":  "UHS Primary Care Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4040",
+        "Address1":  "179 North Broad St.",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Primary Care Owego",
+        "Location":  null,
+        "Phone":  "607-687-0350",
+        "Address1":  "42 West Main Street",
+        "Address2":  null,
+        "City":  "Owego",
+        "State":  "NY",
+        "Zip":  "13827"
+    },
+    {
+        "Name":  "UHS Primary Care Oxford",
+        "Location":  null,
+        "Phone":  "607-843-9816",
+        "Address1":  "21 North Canal Street",
+        "Address2":  null,
+        "City":  "Oxford",
+        "State":  "NY",
+        "Zip":  "13830"
+    },
+    {
+        "Name":  "UHS Primary Care Robinson Street",
+        "Location":  null,
+        "Phone":  "607-296-2300",
+        "Address1":  "160 Robinson St.",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13904"
+    },
+    {
+        "Name":  "UHS Primary Care Roscoe",
+        "Location":  null,
+        "Phone":  "607-498-4800",
+        "Address1":  "1982 Old Route 17",
+        "Address2":  null,
+        "City":  "Roscoe",
+        "State":  "NY",
+        "Zip":  "12776"
+    },
+    {
+        "Name":  "UHS Primary Care Sherburne",
+        "Location":  null,
+        "Phone":  "607-674-4495",
+        "Address1":  "38 Classic Street",
+        "Address2":  null,
+        "City":  "Sherburne",
+        "State":  "NY",
+        "Zip":  "13460"
+    },
+    {
+        "Name":  "UHS Primary Care Sidney",
+        "Location":  null,
+        "Phone":  "607-561-2200",
+        "Address1":  "44 Pearl Street",
+        "Address2":  null,
+        "City":  "Sidney",
+        "State":  "NY",
+        "Zip":  "13838"
+    },
+    {
+        "Name":  "UHS Primary Care Upper Front Street",
+        "Location":  null,
+        "Phone":  "607-722-3417",
+        "Address1":  "1290 Upper Front Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Primary Care Vestal",
+        "Location":  null,
+        "Phone":  "607-770-7365",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Primary Care Walton",
+        "Location":  null,
+        "Phone":  "607-865-2400",
+        "Address1":  "2 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Primary Care Windsor",
+        "Location":  null,
+        "Phone":  "607-655-1230",
+        "Address1":  "5 College Avenue",
+        "Address2":  null,
+        "City":  "Windsor",
+        "State":  "NY",
+        "Zip":  "13865"
+    },
+    {
+        "Name":  "UHS Professional Home Care Ithaca",
+        "Location":  null,
+        "Phone":  "607-257-1425",
+        "Address1":  "222 Elmira Road, Suite 4",
+        "Address2":  "Ithaca Shopping Plaza",
+        "City":  "Ithaca",
+        "State":  "NY",
+        "Zip":  "14850"
+    },
+    {
+        "Name":  "UHS Radiation Oncology",
+        "Location":  null,
+        "Phone":  "607-763-8181",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 101",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Rheumatology",
+        "Location":  null,
+        "Phone":  "607-240-2879",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS School-Based Health Center Franklin",
+        "Location":  null,
+        "Phone":  "607-762-6017",
+        "Address1":  "262 Conklin Ave",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS School-Based Health Center Roosevelt",
+        "Location":  null,
+        "Phone":  "607-762-6012",
+        "Address1":  "9 Ogden Street",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13901"
+    },
+    {
+        "Name":  "UHS Senior Living at Ideal",
+        "Location":  null,
+        "Phone":  "607-786-7300",
+        "Address1":  "600 High Avenue",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Sleep \u0026 Neurodiagnostic Center",
+        "Location":  null,
+        "Phone":  "607-762-2048",
+        "Address1":  "93 Pennsylvania Avenue",
+        "Address2":  null,
+        "City":  "Binghamton",
+        "State":  "NY",
+        "Zip":  "13903"
+    },
+    {
+        "Name":  "UHS Specialty Pharmacy",
+        "Location":  null,
+        "Phone":  "607-352-5948",
+        "Address1":  "345 Main St",
+        "Address2":  "Suite A",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Spine Care \u0026 Pain Relief Johnson City",
+        "Location":  null,
+        "Phone":  "607-748-7468",
+        "Address1":  "52 Harrison St.",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Spine Care \u0026 Pain Relief Norwich",
+        "Location":  null,
+        "Phone":  null,
+        "Address1":  "4 Newton Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Sports Performance",
+        "Location":  null,
+        "Phone":  "607-240-2748",
+        "Address1":  "4433 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Stroke Clinic",
+        "Location":  null,
+        "Phone":  "607-763-8724",
+        "Address1":  "30 Harrison St",
+        "Address2":  "Suite 400",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Surgery",
+        "Location":  null,
+        "Phone":  "607-763-8100",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Wilson Square",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Surgery Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4970",
+        "Address1":  "4 Newton Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Urology",
+        "Location":  null,
+        "Phone":  "607-763-8101",
+        "Address1":  "30 Harrison Street",
+        "Address2":  "Suite 460",
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Walk-In Endicott",
+        "Location":  null,
+        "Phone":  "607-754-7171",
+        "Address1":  "1302 E. Main Street",
+        "Address2":  null,
+        "City":  "Endicott",
+        "State":  "NY",
+        "Zip":  "13760"
+    },
+    {
+        "Name":  "UHS Walk-In Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4034",
+        "Address1":  "179 N. Broad Street",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    },
+    {
+        "Name":  "UHS Walk-In Vestal",
+        "Location":  null,
+        "Phone":  "607-729-2144",
+        "Address1":  "4417 Vestal Parkway East",
+        "Address2":  null,
+        "City":  "Vestal",
+        "State":  "NY",
+        "Zip":  "13850"
+    },
+    {
+        "Name":  "UHS Walk-In Walton",
+        "Location":  null,
+        "Phone":  "607-865-2100",
+        "Address1":  "1 Titus Place",
+        "Address2":  null,
+        "City":  "Walton",
+        "State":  "NY",
+        "Zip":  "13856"
+    },
+    {
+        "Name":  "UHS Wilson Medical Center",
+        "Location":  null,
+        "Phone":  "607-763-6000",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Wilson Medical Center GI Lab",
+        "Location":  null,
+        "Phone":  "607-763-6032",
+        "Address1":  "33-57 Harrison Street",
+        "Address2":  null,
+        "City":  "Johnson City",
+        "State":  "NY",
+        "Zip":  "13790"
+    },
+    {
+        "Name":  "UHS Women\u0027s Health Center Norwich",
+        "Location":  null,
+        "Phone":  "607-337-4218",
+        "Address1":  "32 Conkey Avenue",
+        "Address2":  null,
+        "City":  "Norwich",
+        "State":  "NY",
+        "Zip":  "13815"
+    }
+]
