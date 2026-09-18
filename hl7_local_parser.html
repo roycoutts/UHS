@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Offline HL7 v2 Parser</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --accent: #f0fdf4;
+            --accent-border: #bbf7d0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+        h1 { margin: 0 0 5px 0; color: #0f172a; font-size: 24px; }
+        .privacy-badge {
+            display: inline-block;
+            background-color: var(--accent);
+            color: #166534;
+            border: 1px solid var(--accent-border);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media (min-width: 768px) {
+            .layout { grid-template-columns: 1fr 1fr; }
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        h2 { margin-top: 0; font-size: 18px; color: #334155; display: flex; justify-content: space-between; align-items: center; }
+        textarea {
+            width: 100%;
+            height: 180px;
+            box-sizing: border-box;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            font-family: Courier, monospace;
+            font-size: 13px;
+            resize: vertical;
+            background: #fafafa;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #fff;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button.secondary {
+            background-color: #f1f5f9;
+            color: #475569;
+            border: 1px solid var(--border);
+        }
+        button.secondary:hover { background-color: #e2e8f0; }
+        .filter-box {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border);
+        }
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        select, input[type="text"] {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        select { background: white; }
+        input[type="text"] { flex-grow: 1; }
+        .quick-filters {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .tag {
+            background: #e2e8f0;
+            color: #334155;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .tag:hover { background: #cbd5e1; }
+        .tag.active {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #93c5fd;
+        }
+        .tree-view {
+            max-height: 500px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        .segment-row {
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .segment-header {
+            background: #f1f5f9;
+            padding: 8px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            user-select: none;
+        }
+        .segment-header:hover { background: #e2e8f0; }
+        .segment-body {
+            padding: 0 12px;
+            background: #fff;
+            display: block;
+        }
+        .field-row {
+            display: grid;
+            grid-template-columns: 80px 180px 1fr;
+            padding: 6px 0;
+            border-bottom: 1px dashed #f1f5f9;
+            font-size: 13px;
+        }
+        .field-row:last-child { border-bottom: none; }
+        .field-id { font-family: monospace; color: var(--primary); font-weight: 600; }
+        .field-name { color: var(--text-light); font-style: italic; padding-right: 5px; }
+        .field-value { font-family: monospace; word-break: break-all; color: #000; }
+        .hidden { display: none !important; }
+        .highlight { background-color: #fef08a; padding: 2px 4px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Local Offline HL7 v2 Parser</h1>
+        <div class="privacy-badge">🔒 100% Local: No data leaves your machine</div>
+    </header>
+
+    <div class="layout">
+        <!-- Input Area -->
+        <div class="card">
+            <h2>HL7 Message Input</h2>
+            <textarea id="hl7Input" placeholder="Paste your raw HL7 v2 message here (e.g., MSH|^~\&|...)"></textarea>
+            
+            <div class="controls">
+                <button onclick="parseHL7()">Parse Message</button>
+                <button class="secondary" onclick="loadSample()">Load Sample Message</button>
+                <button class="secondary" onclick="clearInput()">Clear</button>
+            </div>
+
+            <div class="filter-box">
+                <h3>Local Filters & Highlights</h3>
+                <div class="filter-group">
+                    <select id="filterType" onchange="applyFilters()">
+                        <option value="all">All Segments</option>
+                        <option value="PID">PID Only</option>
+                        <option value="PV1">PV1 Only</option>
+                        <option value="SCH">SCH Only</option>
+                    </select>
+                    <input type="text" id="searchBar" placeholder="Search values across fields..." oninput="applyFilters()">
+                </div>
+                
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-light); margin-top: 10px;">Specialized Target Filters:</div>
+                <div class="quick-filters">
+                    <span class="tag" onclick="toggleQuickFilter('SCH.2', this)">SCH.2 (FillerAppointmentID)</span>
+                    <span class="tag" onclick="toggleQuickFilter('SCH.6', this)">SCH.6 (EventReason)</span>
+                    <span class="tag" onclick="toggleQuickFilter('SCH.7', this)">SCH.7 (AppointmentReason)</span>
+                    <span class="tag" onclick="toggleQuickFilter('SCH.20', this)">SCH.20 (EnteredByPerson)</span>
+                    <span class="tag" onclick="toggleQuickFilter('PID.3', this)">PID.3 (PatientIdentifierList)</span>
+                    <span class="tag" onclick="toggleQuickFilter('PID.18', this)">PID.18 (PatientAccountNumber)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Area -->
+        <div class="card">
+            <h2>Parsed Elements <span id="segmentCount" style="font-size: 13px; font-weight: normal; color: var(--text-light);"></span></h2>
+            <div id="treeView" class="tree-view">
+                <p style="color: var(--text-light); font-style: italic;">Paste a message and click "Parse Message" to view the segment decomposition tree structure.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Comprehensive dictionary mapping segment-field combinations to their friendly names
+    const dictionary = {
+        'MSH.1': 'Field Separator', 'MSH.2': 'Encoding Characters', 'MSH.3': 'Sending Application', 'MSH.4': 'Sending Facility', 'MSH.5': 'Receiving Application', 'MSH.6': 'Receiving Facility', 'MSH.7': 'Date/Time Of Message', 'MSH.9': 'Message Type', 'MSH.10': 'Message Control ID', 'MSH.11': 'Processing ID', 'MSH.12': 'Version ID',
+        'PID.1': 'Set ID', 'PID.2': 'Patient ID', 'PID.3': 'Patient Identifier List', 'PID.4': 'Alternate Patient ID', 'PID.5': 'Patient Name', 'PID.7': 'DateTime of Birth', 'PID.8': 'Administrative Sex', 'PID.10': 'Race', 'PID.11': 'Patient Address', 'PID.13': 'Phone Number - Home', 'PID.14': 'Phone Number - Business', 'PID.18': 'Patient Account Number', 'PID.19': 'SSN Number - Patient',
+        'PV1.1': 'Set ID', 'PV1.2': 'Patient Class', 'PV1.3': 'Assigned Patient Location', 'PV1.7': 'Attending Doctor', 'PV1.8': 'Referring Doctor', 'PV1.9': 'Consulting Doctor', 'PV1.10': 'Hospital Service', 'PV1.14': 'Admit Source', 'PV1.19': 'Visit Number', 'PV1.44': 'Admit Date/Time', 'PV1.45': 'Discharge Date/Time',
+        'SCH.1': 'Placer Appointment ID', 'SCH.2': 'Filler Appointment ID', 'SCH.3': 'Occurrence Number', 'SCH.4': 'Placer Group Number', 'SCH.5': 'Schedule ID', 'SCH.6': 'Event Reason', 'SCH.7': 'Appointment Reason', 'SCH.8': 'Appointment Type', 'SCH.9': 'Appointment Duration', 'SCH.11': 'Appointment Timing Quantity', 'SCH.12': 'Policy Plan', 'SCH.16': 'Filler Contact Person', 'SCH.20': 'Entered By Person'
+    };
+
+    let activeQuickFilters = new Set();
+    let parsedSegmentsGlobal = [];
+
+    function clearInput() {
+        document.getElementById('hl7Input').value = '';
+        document.getElementById('treeView').innerHTML = '<p style="color: var(--text-light); font-style: italic;">Tree structure cleared.</p>';
+        document.getElementById('segmentCount').innerText = '';
+        parsedSegmentsGlobal = [];
+    }
+
+    function loadSample() {
+        const sample = "MSH|^~\\&|APP_SRC|FAC_SRC|APP_DEST|FAC_DEST|20260918130000||SIU^S12|MSG00001|P|2.5\r" +
+                       "SCH|1001^PlacerID|2002^FillerApptID||||RENEWAL^Routine Renewal|MED^Medical Checkup|ROUTINE|60|MIN||||||||||JD001^Doe^John\r" +
+                       "PID|1||999888777^^^MRN||Smith^Jane^Marie||19851025|F||2106-3|123 Main St^^Johnson City^NY^13790||607-555-0199|||||ACC-443322^AccountNum";
+        document.getElementById('hl7Input').value = sample.replace(/\r/g, "\r\n");
+        parseHL7();
+    }
+
+    function parseHL7() {
+        const raw = document.getElementById('hl7Input').value.trim();
+        const treeView = document.getElementById('treeView');
+        
+        if (!raw) {
+            treeView.innerHTML = '<p style="color: red;">Please provide a valid HL7 message payload strings.</p>';
+            return;
+        }
+
+        // Handle mixed line endings normalized to standardized breaks
+        const lines = raw.split(/[\r\n]+/).filter(l => l.trim().length > 0);
+        parsedSegmentsGlobal = [];
+
+        lines.forEach((line, index) => {
+            if(line.length < 3) return;
+            const segName = line.substr(0, 3);
+            
+            // Capture MSH Delimiters safely
+            let fs = '|';
+            let fields = [];
+            
+            if (segName === 'MSH') {
+                fs = line.charAt(3) || '|';
+                fields = line.split(fs);
+                // Adjust index shifts for special MSH structure
+                fields.splice(1, 0, fs); 
+            } else {
+                // Find dynamic field separator from active MSH block if loaded, else use normal pipe
+                if(parsedSegmentsGlobal[0] && parsedSegmentsGlobal[0].fs) {
+                    fs = parsedSegmentsGlobal[0].fs;
+                }
+                fields = line.split(fs);
+            }
+
+            const parsedFields = fields.map((val, fIdx) => {
+                const fNum = fIdx;
+                const fieldKey = `${segName}.${fNum}`;
+                return {
+                    num: fNum,
+                    key: fieldKey,
+                    name: dictionary[fieldKey] || `Field ${fNum}`,
+                    value: val
+                };
+            });
+
+            parsedSegmentsGlobal.push({
+                index: index,
+                name: segName,
+                raw: line,
+                fs: fs,
+                fields: parsedFields
+            });
+        });
+
+        applyFilters();
+    }
+
+    function toggleQuickFilter(fieldKey, element) {
+        if (activeQuickFilters.has(fieldKey)) {
+            activeQuickFilters.delete(fieldKey);
+            element.classList.remove('active');
+        } else {
+            activeQuickFilters.add(fieldKey);
+            element.classList.add('active');
+        }
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const typeFilter = document.getElementById('filterType').value;
+        const searchVal = document.getElementById('searchBar').value.toLowerCase();
+        const treeView = document.getElementById('treeView');
+        
+        if (parsedSegmentsGlobal.length === 0) return;
+
+        treeView.innerHTML = '';
+        let visibleCount = 0;
+
+        parsedSegmentsGlobal.forEach(seg => {
+            // Segment type classification filter check
+            if (typeFilter !== 'all' && seg.name !== typeFilter) return;
+
+            let matchesSearch = !searchVal || seg.raw.toLowerCase().includes(searchVal);
+            
+            // Evaluate custom localized filter intersections
+            let matchesQuickFilter = activeQuickFilters.size === 0;
+            if (activeQuickFilters.size > 0) {
+                matchesQuickFilter = seg.fields.some(f => activeQuickFilters.has(f.key) && f.value.trim().length > 0);
+            }
+
+            if (!matchesSearch || !matchesQuickFilter) return;
+            visibleCount++;
+
+            // Render Segment Elements dynamically
+            const segRow = document.createElement('div');
+            segRow.className = 'segment-row';
+
+            const header = document.createElement('div');
+            header.className = 'segment-header';
+            header.innerHTML = `<span>⚡ ${seg.name} <span style="font-weight:normal; font-size:12px; color:var(--text-light); margin-left:10px;">${seg.raw.substring(0, 60)}...</span></span> <span>▼</span>`;
+            
+            const body = document.createElement('div');
+            body.className = 'segment-body';
+
+            seg.fields.forEach(f => {
+                if (f.num === 0 || !f.value) return; // Skip segment header itself and empty fields unless filtered
+
+                // Highlight fields targeting quick filters explicitly even if others are visible
+                const isQuickTarget = activeQuickFilters.has(f.key);
+                let valDisplay = f.value;
+                
+                if (searchVal && valDisplay.toLowerCase().includes(searchVal)) {
+                    const regex = new RegExp(`(${searchVal})`, 'gi');
+                    valDisplay = valDisplay.replace(regex, '<span class="highlight">$1</span>');
+                }
+
+                const fieldRow = document.createElement('div');
+                fieldRow.className = 'field-row';
+                if (isQuickTarget) {
+                    fieldRow.style.backgroundColor = '#eff6ff';
+                    fieldRow.style.borderLeft = '3px solid var(--primary)';
+                    fieldRow.style.paddingLeft = '5px';
+                }
+
+                fieldRow.innerHTML = `
+                    <div class="field-id">${f.key}</div>
+                    <div class="field-name" title="${f.name}">${f.name}</div>
+                    <div class="field-value">${valDisplay}</div>
+                `;
+                body.appendChild(fieldRow);
+            });
+
+            header.onclick = () => {
+                body.classList.toggle('hidden');
+                header.querySelector('span:last-child').innerText = body.classList.contains('hidden') ? '▶' : '▼';
+            };
+
+            segRow.appendChild(header);
+            segRow.appendChild(body);
+            treeView.appendChild(segRow);
+        });
+
+        document.getElementById('segmentCount').innerText = `(Showing ${visibleCount} of ${parsedSegmentsGlobal.length} segments)`;
+        if (visibleCount === 0) {
+            treeView.innerHTML = '<p style="color: var(--text-light); font-style: italic; padding: 10px;">No segments match your combined query filters criteria.</p>';
+        }
+    }
+</script>
+</body>
+</html>
