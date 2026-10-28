@@ -285,31 +285,25 @@ function Search-ADUsers {
         Set-Status "Searching for '$stRaw' ..."
         $managerCache = @{}
 
-        # Decide search strategy based on your workflow
+        # Any input may be an EmployeeID or a SAM account name.
+        # Search BOTH attributes in the same LDAP OR filter (exact matches).
+        # Do not classify identifiers based on whether they are numeric.
         $ldapFiltersToTry = New-Object System.Collections.Generic.List[string]
+        $ldapFiltersToTry.Add("(|(employeeID=$st)(sAMAccountName=$st))")
 
-       if ($stRaw -match '^\d+$') {
-           # Numeric search: EmployeeID first, then SAM account
-           $ldapFiltersToTry.Add("(employeeID=$st)")
-           $ldapFiltersToTry.Add("(sAMAccountName=$st)")
-        }
-        elseif ($stRaw -match '^\S+@\S+\.\S+$') {
-            # Email exact
+        # If neither identifier has an exact match, keep the name/email
+        # searches and support users who enter only part of a SAM account.
+        if ($stRaw -match '^\S+@\S+\.\S+$') {
             $ldapFiltersToTry.Add("(mail=$st)")
         }
         else {
-            # Login ID exact first (no spaces)
-            if ($stRaw -notmatch '\s') {
-                $ldapFiltersToTry.Add("(sAMAccountName=$st)")
-            }
-
-            # Then your typical fallback: last name / display name
-            # Starts-with first (fewer results, faster)
             $ldapFiltersToTry.Add("(sn=$st*)")
             $ldapFiltersToTry.Add("(displayName=*$st*)")
-
-            # If still nothing, contains on surname (broader)
             $ldapFiltersToTry.Add("(sn=*$st*)")
+            if ($stRaw -notmatch '\s') {
+                $ldapFiltersToTry.Add("(sAMAccountName=$st*)")
+                $ldapFiltersToTry.Add("(sAMAccountName=*$st*)")
+            }
         }
 
         $properties = @(
@@ -335,11 +329,7 @@ function Search-ADUsers {
         $users = @()
 
         foreach ($inner in $ldapFiltersToTry) {
-            $ldap = "(&" +
-                    "(objectCategory=person)" +
-                    "(objectClass=user)" +
-                    "(|$inner)" +
-                    ")"
+            $ldap = "(&(objectCategory=person)(objectClass=user)$inner)"
 
             $users = Get-ADUser -LDAPFilter $ldap -Properties $properties -ResultSetSize $MaxResults -ErrorAction Stop
 
