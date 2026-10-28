@@ -288,9 +288,10 @@ function Search-ADUsers {
         # Decide search strategy based on your workflow
         $ldapFiltersToTry = New-Object System.Collections.Generic.List[string]
 
-        if ($stRaw -match '^\d+$') {
-            # EmployeeID exact
-            $ldapFiltersToTry.Add("(employeeID=$st)")
+       if ($stRaw -match '^\d+$') {
+           # Numeric search: EmployeeID first, then SAM account
+           $ldapFiltersToTry.Add("(employeeID=$st)")
+           $ldapFiltersToTry.Add("(sAMAccountName=$st)")
         }
         elseif ($stRaw -match '^\S+@\S+\.\S+$') {
             # Email exact
