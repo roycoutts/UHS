@@ -422,6 +422,89 @@ $searchButton.Add_Click({ $t = $searchBox.Text.Trim(); if ($t) { Search-ADUsers 
 $searchBox.Add_KeyDown({ param($sender, $e); if ($e.Key -eq [System.Windows.Input.Key]::Enter) { $t = $searchBox.Text.Trim(); if ($t) { Search-ADUsers -SearchTerm $t } } })
 
 
+# Expanded right-click menu. Each menu is attached to its own DataGridRow.
+# MenuItem.Tag holds the action; ContextMenu.Tag identifies the clicked row.
+$copyContextMenuHandler = {
+    param($sender, $args)
+
+    $contextMenu = $sender.Parent
+    if ($null -eq $contextMenu) { return }
+
+    $clickedRow = $contextMenu.Tag
+    if ($null -eq $clickedRow) { return }
+
+    $selectedUser = $clickedRow.Item
+    if ($null -eq $selectedUser -or
+        $selectedUser -eq [System.Windows.Data.CollectionView]::NewItemPlaceholder) { return }
+
+    $userGrid.SelectedItem = $selectedUser
+    $action = [string]$sender.Tag
+    $label = [string]$sender.Header
+
+    switch ($action) {
+        'TicketBlock' {
+            $value = New-TicketBlockText -SelectedItem $selectedUser
+        }
+        'Groups' {
+            $value = ($selectedUser.MemberOfGroups | Sort-Object) -join "`r`n"
+        }
+        default {
+            $value = [string]$selectedUser.$action
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        Set-Status "No value available for $label."
+        return
+    }
+
+    if (Set-ClipboardTextSafe -Text $value) {
+        Set-Status "Copied $label for $($selectedUser.SamAccountName)."
+    }
+}
+
+$userGrid.Add_LoadingRow({
+    param($sender, $e)
+
+    $menu = New-Object System.Windows.Controls.ContextMenu
+    $menu.Tag = $e.Row
+
+    # Select the row the user right-clicked (not the previously selected row).
+    $menu.Add_Opened({
+        param($sender, $args)
+        $row = $sender.Tag
+        if ($null -ne $row -and $null -ne $row.Item) {
+            $userGrid.SelectedItem = $row.Item
+        }
+    })
+
+    $menuOptions = @(
+        @{ Label = 'Copy SAM Account Name'; Action = 'SamAccountName' }
+        @{ Label = 'Copy Employee ID';      Action = 'EmployeeID' }
+        @{ Label = 'Copy Display Name';      Action = 'DisplayName' }
+        @{ Label = 'Copy Email Address';     Action = 'EmailAddress' }
+        @{ Label = 'Copy User Principal Name (UPN)'; Action = 'UPN' }
+        @{ Separator = $true }
+        @{ Label = 'Copy Ticket Block';     Action = 'TicketBlock' }
+        @{ Label = 'Copy Groups Only';      Action = 'Groups' }
+    )
+
+    foreach ($option in $menuOptions) {
+        if ($option.ContainsKey('Separator')) {
+            [void]$menu.Items.Add((New-Object System.Windows.Controls.Separator))
+            continue
+        }
+
+        $item = New-Object System.Windows.Controls.MenuItem
+        $item.Header = $option.Label
+        $item.Tag = $option.Action
+        $item.Add_Click($copyContextMenuHandler)
+        [void]$menu.Items.Add($item)
+    }
+
+    $e.Row.ContextMenu = $menu
+})
+
 $userGrid.Add_MouseDoubleClick({
     $selectedItem = $userGrid.SelectedItem
     if ($selectedItem) {
