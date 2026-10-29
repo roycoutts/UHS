@@ -1,309 +1,501 @@
+#Requires -Version 5.1
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
 
-# Safely initialize each variable separately to prevent array linking in PowerShell 5.1
-$txtEmolst = $null
-$txtEmployee = $null
-$txtExport = $null
-$lblEmolstTotal = $null
-$lblEmpTotal = $null
-$lblEmolstActive = $null
-$lblMatched = $null
-$lblUnmatched = $null
-$lblConflict = $null
-$lblAdEnabled = $null
-$lblAdDisabled = $null
-$lblAdNotFound = $null
-$lblAdOther = $null
+# ---------- XAML ----------
+[xml]$xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="eMOLST &amp; Employee Directory Reconciliation Audit Tool"
+        Height="820" Width="960" WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip" MinHeight="700" MinWidth="780">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Background" Value="#0078D4"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#106EBE"/>
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Background" Value="#CCCCCC"/>
+          <Setter Property="Foreground" Value="#666666"/>
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Padding" Value="6,4"/>
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+  </Window.Resources>
 
-# Create main window form
-$form = New-Object System.Windows.Forms.Form
-$form.Text = "eMOLST & Employee Directory Reconciliation Audit Tool"
-$form.Size = New-Object System.Drawing.Size(650, 680)
-$form.StartPosition = "CenterScreen"
-$form.FormBorderStyle = "FixedDialog"
-$form.MaximizeBox = $false
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
 
-# Helper Font styles
-$fontHeader = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$fontNormal = New-Object System.Drawing.Font("Segoe UI", 9)
-$fontLabel  = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Bold)
+    <!-- Title -->
+    <TextBlock Grid.Row="0" Text="eMOLST &amp; Employee Directory Reconciliation Audit Tool" 
+               FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"/>
 
-# --- 1. FILE PICKER & UI SECTION CONTROLS ---
+    <!-- File pickers -->
+    <Border Grid.Row="1" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="200"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
 
-function Add-FilePicker {
-    param(
-        [int]$Top, 
-        [string]$LabelText, 
-        [string]$ButtonText, 
-        [ref]$TxtVariable, 
-        [bool]$IsFolder=$false
-    )
-    
-    $lbl = New-Object System.Windows.Forms.Label
-    $lbl.Text = $LabelText
-    $lbl.Location = New-Object System.Drawing.Point(20, $Top)
-    $lbl.Size = New-Object System.Drawing.Size(150, 23)
-    $lbl.Font = $fontNormal
-    $form.Controls.Add($lbl)
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="eMOLST Users (CSV):" VerticalAlignment="Center"/>
+        <TextBox   Grid.Row="0" Grid.Column="1" Name="txtEmolst" Margin="8,4"/>
+        <Button    Grid.Row="0" Grid.Column="2" Name="btnBrowseEmolst" Content="Browse..." Width="100"/>
 
-    $txt = New-Object System.Windows.Forms.TextBox
-    $txt.Location = New-Object System.Drawing.Point(180, $Top)
-    $txt.Size = New-Object System.Drawing.Size(320, 23)
-    $txt.Font = $fontNormal
-    $form.Controls.Add($txt)
-    $TxtVariable.Value = $txt
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Employee List (Excel):" VerticalAlignment="Center" Margin="0,8,0,0"/>
+        <TextBox   Grid.Row="1" Grid.Column="1" Name="txtEmployee" Margin="8,8,8,4"/>
+        <Button    Grid.Row="1" Grid.Column="2" Name="btnBrowseEmployee" Content="Browse..." Width="100" Margin="0,8,0,0"/>
 
-    $btnTop = $Top - 2
-    $btn = New-Object System.Windows.Forms.Button
-    $btn.Text = $ButtonText
-    $btn.Location = New-Object System.Drawing.Point(510, $btnTop)
-    $btn.Size = New-Object System.Drawing.Size(95, 25)
-    $btn.Font = $fontNormal
-    
-    # Anchor the textbox and configurations directly to the button object
-    $btn.Tag = $txt
-    
-    if ($IsFolder) {
-        $btn.Add_Click({
-            $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-            $dialog.Description = "Select Target Export Folder"
-            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { 
-                $this.Tag.Text = $dialog.SelectedPath 
-            }
-        })
-    } else {
-        # Establish the explicit file filter on creation while scope is alive
-        $fileFilter = if ($LabelText -match "eMOLST") { "CSV Files (*.csv)|*.csv" } else { "Excel Files (*.xlsx)|*.xlsx" }
-        
-        $btn.Add_Click({
-            $dialog = New-Object System.Windows.Forms.OpenFileDialog
-            $dialog.Filter = $fileFilter
-            if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { 
-                $this.Tag.Text = $dialog.FileName 
-            }
-        })
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Export Folder:" VerticalAlignment="Center" Margin="0,8,0,0"/>
+        <TextBox   Grid.Row="2" Grid.Column="1" Name="txtExport" Margin="8,8,8,4"/>
+        <Button    Grid.Row="2" Grid.Column="2" Name="btnBrowseExport" Content="Select Folder" Width="100" Margin="0,8,0,0"/>
+      </Grid>
+    </Border>
+
+    <!-- Options + Run -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+      <CheckBox Name="chkDoAD" Content="Perform Active Directory lookups for conflicts" IsChecked="True" VerticalAlignment="Center" Margin="0,0,20,0"/>
+      <Button Name="btnRun" Content="Begin Reconciliation" Width="220" Height="36" FontWeight="SemiBold"/>
+      <Button Name="btnReset" Content="Reset" Width="90" Height="36" Background="#6C757D"/>
+    </StackPanel>
+
+    <!-- Metrics -->
+    <Border Grid.Row="3" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,12">
+      <Grid Name="gridMetrics">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="140"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="140"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="eMOLST Records:" Margin="0,2"/>
+        <TextBlock Grid.Row="0" Grid.Column="1" Name="lblEmolstTotal" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+        <TextBlock Grid.Row="0" Grid.Column="2" Text="Employee Records:" Margin="16,2,0,2"/>
+        <TextBlock Grid.Row="0" Grid.Column="3" Name="lblEmpTotal" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="eMOLST Active Users:" Margin="0,2"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Name="lblEmolstActive" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+        <TextBlock Grid.Row="1" Grid.Column="2" Text="Matched Users:" Margin="16,2,0,2"/>
+        <TextBlock Grid.Row="1" Grid.Column="3" Name="lblMatched" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Unmatched Users:" Margin="0,2"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" Name="lblUnmatched" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+        <TextBlock Grid.Row="2" Grid.Column="2" Text="Status Conflicts:" Margin="16,2,0,2"/>
+        <TextBlock Grid.Row="2" Grid.Column="3" Name="lblConflict" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2" Foreground="#D83B01"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="AD Enabled (Conflicts):" Margin="0,2"/>
+        <TextBlock Grid.Row="3" Grid.Column="1" Name="lblAdEnabled" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+        <TextBlock Grid.Row="3" Grid.Column="2" Text="AD Disabled (Conflicts):" Margin="16,2,0,2"/>
+        <TextBlock Grid.Row="3" Grid.Column="3" Name="lblAdDisabled" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="AD Not Found (Conflicts):" Margin="0,2"/>
+        <TextBlock Grid.Row="4" Grid.Column="1" Name="lblAdNotFound" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+        <TextBlock Grid.Row="4" Grid.Column="2" Text="AD Other/Error (Conflicts):" Margin="16,2,0,2"/>
+        <TextBlock Grid.Row="4" Grid.Column="3" Name="lblAdOther" Text="--" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,2"/>
+      </Grid>
+    </Border>
+
+    <!-- Progress -->
+    <StackPanel Grid.Row="4" Margin="0,0,0,8">
+      <ProgressBar Name="progressBar" Height="18" Minimum="0" Maximum="100" Value="0"/>
+      <TextBlock Name="txtStatus" Text="Ready." Margin="0,4,0,0" Foreground="#555"/>
+    </StackPanel>
+
+    <!-- Log -->
+    <TextBox Grid.Row="5" Name="txtLog" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+             FontFamily="Consolas" FontSize="12" Background="#F8F8F8" Padding="8" Margin="0,0,0,12"/>
+
+    <!-- Bottom buttons -->
+    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Name="btnOpenFolder" Content="Open Export Folder" IsEnabled="False" Background="#28A745"/>
+      <Button Name="btnViewConflicts" Content="View Conflicts" IsEnabled="False" Background="#17A2B8"/>
+    </StackPanel>
+  </Grid>
+</Window>
+"@
+
+$reader = New-Object System.Xml.XmlNodeReader $xaml
+$window = [Windows.Markup.XamlReader]::Load($reader)
+
+# ---------- Named controls ----------
+$txtEmolst       = $window.FindName("txtEmolst")
+$txtEmployee     = $window.FindName("txtEmployee")
+$txtExport       = $window.FindName("txtExport")
+$btnBrowseEmolst = $window.FindName("btnBrowseEmolst")
+$btnBrowseEmployee = $window.FindName("btnBrowseEmployee")
+$btnBrowseExport = $window.FindName("btnBrowseExport")
+$chkDoAD         = $window.FindName("chkDoAD")
+$btnRun          = $window.FindName("btnRun")
+$btnReset        = $window.FindName("btnReset")
+$lblEmolstTotal  = $window.FindName("lblEmolstTotal")
+$lblEmpTotal     = $window.FindName("lblEmpTotal")
+$lblEmolstActive = $window.FindName("lblEmolstActive")
+$lblMatched      = $window.FindName("lblMatched")
+$lblUnmatched    = $window.FindName("lblUnmatched")
+$lblConflict     = $window.FindName("lblConflict")
+$lblAdEnabled    = $window.FindName("lblAdEnabled")
+$lblAdDisabled   = $window.FindName("lblAdDisabled")
+$lblAdNotFound   = $window.FindName("lblAdNotFound")
+$lblAdOther      = $window.FindName("lblAdOther")
+$progressBar     = $window.FindName("progressBar")
+$txtStatus       = $window.FindName("txtStatus")
+$txtLog          = $window.FindName("txtLog")
+$btnOpenFolder   = $window.FindName("btnOpenFolder")
+$btnViewConflicts= $window.FindName("btnViewConflicts")
+
+# ---------- Helpers ----------
+function Write-Log {
+    param([string]$Message)
+    $ts = Get-Date -Format "HH:mm:ss"
+    $txtLog.AppendText("[$ts] $Message`r`n")
+    $txtLog.ScrollToEnd()
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Set-Status {
+    param([string]$Message, [int]$Progress = -1)
+    $txtStatus.Text = $Message
+    if ($Progress -ge 0) { $progressBar.Value = $Progress }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Reset-UI {
+    $lblEmolstTotal.Text = "--"
+    $lblEmpTotal.Text = "--"
+    $lblEmolstActive.Text = "--"
+    $lblMatched.Text = "--"
+    $lblUnmatched.Text = "--"
+    $lblConflict.Text = "--"
+    $lblAdEnabled.Text = "--"
+    $lblAdDisabled.Text = "--"
+    $lblAdNotFound.Text = "--"
+    $lblAdOther.Text = "--"
+    $progressBar.Value = 0
+    $txtStatus.Text = "Ready."
+    $txtLog.Clear()
+    $btnOpenFolder.IsEnabled = $false
+    $btnViewConflicts.IsEnabled = $false
+    $script:lastExportFolder = $null
+    $script:lastConflictPath = $null
+}
+
+# ---------- File dialogs ----------
+$btnBrowseEmolst.Add_Click({
+    $dlg = New-Object Microsoft.Win32.OpenFileDialog
+    $dlg.Filter = "CSV Files (*.csv)|*.csv"
+    $dlg.Title = "Select eMOLST Users CSV"
+    if ($dlg.ShowDialog() -eq $true) { $txtEmolst.Text = $dlg.FileName }
+})
+
+$btnBrowseEmployee.Add_Click({
+    $dlg = New-Object Microsoft.Win32.OpenFileDialog
+    $dlg.Filter = "Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*"
+    $dlg.Title = "Select Employee List Excel"
+    if ($dlg.ShowDialog() -eq $true) { $txtEmployee.Text = $dlg.FileName }
+})
+
+$btnBrowseExport.Add_Click({
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = "Select Export Folder"
+    if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $txtExport.Text = $dlg.SelectedPath
     }
-    
-    $form.Controls.Add($btn)
-}
+})
 
-# Generate input elements with distinct integer coordinates
-Add-FilePicker -Top 30  -LabelText "Select eMOLST Users File:" -ButtonText "Browse CSV..." -TxtVariable ([ref]$txtEmolst)
-Add-FilePicker -Top 70  -LabelText "Select EMPLOYEE LIST File:" -ButtonText "Browse Excel..." -TxtVariable ([ref]$txtEmployee)
-Add-FilePicker -Top 110 -LabelText "Select Export Folder:"      -ButtonText "Select Folder..." -TxtVariable ([ref]$txtExport) -IsFolder $true
+$btnReset.Add_Click({ Reset-UI })
 
-# Execution Action Button
-$btnRun = New-Object System.Windows.Forms.Button
-$btnRun.Text = "Begin Reconciliation Process"
-$btnRun.Location = New-Object System.Drawing.Point(20, 155)
-$btnRun.Size = New-Object System.Drawing.Size(585, 35)
-$btnRun.Font = $fontHeader
-$btnRun.BackColor = [System.Drawing.Color]::LightBlue
-$form.Controls.Add($btnRun)
+$btnOpenFolder.Add_Click({
+    if ($script:lastExportFolder -and (Test-Path $script:lastExportFolder)) {
+        Start-Process explorer.exe -ArgumentList $script:lastExportFolder
+    }
+})
 
-# --- 2. LIVE DASHBOARD METRICS DISPLAY PANEL ---
+$btnViewConflicts.Add_Click({
+    if (-not $script:lastConflictPath -or -not (Test-Path $script:lastConflictPath)) {
+        [System.Windows.MessageBox]::Show("No conflict file available.", "View Conflicts")
+        return
+    }
+    try {
+        $data = Import-Csv $script:lastConflictPath
+        if (-not $data) {
+            [System.Windows.MessageBox]::Show("Conflict file is empty.", "View Conflicts")
+            return
+        }
 
-$grpDashboard = New-Object System.Windows.Forms.GroupBox
-$grpDashboard.Text = "Live Data Reconciliation Audit Metrics"
-$grpDashboard.Location = New-Object System.Drawing.Point(20, 205)
-$grpDashboard.Size = New-Object System.Drawing.Size(585, 410)
-$grpDashboard.Font = $fontHeader
-$form.Controls.Add($grpDashboard)
+        $gridXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        Title="Status Conflicts" Height="500" Width="1100" WindowStartupLocation="CenterScreen">
+  <Grid>
+    <DataGrid Name="dg" AutoGenerateColumns="True" IsReadOnly="True" Margin="8"/>
+  </Grid>
+</Window>
+"@
+        $r = New-Object System.Xml.XmlNodeReader ([xml]$gridXaml)
+        $w = [Windows.Markup.XamlReader]::Load($r)
+        $dg = $w.FindName("dg")
+        $dg.ItemsSource = $data
+        $w.ShowDialog() | Out-Null
+    } catch {
+        [System.Windows.MessageBox]::Show("Failed to open conflicts: $($_.Exception.Message)", "Error")
+    }
+})
 
-function Add-MetricLabel {
-    param(
-        [int]$Top, 
-        [string]$Description, 
-        [ref]$LblVariable
-    )
-    
-    $lblDesc = New-Object System.Windows.Forms.Label
-    $lblDesc.Text = $Description
-    $lblDesc.Location = New-Object System.Drawing.Point(20, $Top)
-    $lblDesc.Size = New-Object System.Drawing.Size(420, 23)
-    $lblDesc.Font = $fontNormal
-    $grpDashboard.Controls.Add($lblDesc)
-
-    $lblVal = New-Object System.Windows.Forms.Label
-    $lblVal.Text = "--"
-    $lblVal.Location = New-Object System.Drawing.Point(450, $Top)
-    $lblVal.Size = New-Object System.Drawing.Size(115, 23)
-    $lblVal.Font = $fontLabel
-    $lblVal.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
-    $grpDashboard.Controls.Add($lblVal)
-    $LblVariable.Value = $lblVal
-}
-
-# Generate structured text placeholders matching requirements
-Add-MetricLabel -Top 35  -Description "Load eMOLST Data... `n         eMOLST Records:" -LblVariable ([ref]$lblEmolstTotal)
-Add-MetricLabel -Top 75  -Description "Load EMPLOYEE Data... `n       EMPLOYEE Records:" -LblVariable ([ref]$lblEmpTotal)
-Add-MetricLabel -Top 115 -Description "Select eMOLST Active Users (Disenrolled = 'FALSE') `n    eMOLST Active Users:" -LblVariable ([ref]$lblEmolstActive)
-Add-MetricLabel -Top 155 -Description "Match eMOLST Active Users to EMPLOYEE Data `n         MATCHED Users:" -LblVariable ([ref]$lblMatched)
-Add-MetricLabel -Top 195 -Description "       UNMATCHED Users:" -LblVariable ([ref]$lblUnmatched)
-Add-MetricLabel -Top 235 -Description "Compare MATCHED Users' Status `n    User Status Conflict (eMOLST Active/EMPLOYEE Terminated):" -LblVariable ([ref]$lblConflict)
-Add-MetricLabel -Top 275 -Description "Validate User Status Conflict in Active Directory `n     AD Enabled/Status Conflict:" -LblVariable ([ref]$lblAdEnabled)
-Add-MetricLabel -Top 315 -Description "    AD Disabled/Status Conflict:" -LblVariable ([ref]$lblAdDisabled)
-Add-MetricLabel -Top 355 -Description "   AD Not Found/Status Conflict:" -LblVariable ([ref]$lblAdNotFound)
-Add-MetricLabel -Top 385 -Description "       AD Other/Status Conflict:" -LblVariable ([ref]$lblAdOther)
-
-# --- 3. RECONCILIATION LOGIC PIPELINE ---
-
+# ---------- Main processing ----------
 $btnRun.Add_Click({
-    # Validate paths have been provided before starting
-    if ([string]::IsNullOrWhiteSpace($txtEmolst.Text) -or [string]::IsNullOrWhiteSpace($txtEmployee.Text) -or [string]::IsNullOrWhiteSpace($txtExport.Text)) {
-        [System.Windows.Forms.MessageBox]::Show("Please supply all source file locations and output export directory.", "Missing Configuration Paths", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ([string]::IsNullOrWhiteSpace($txtEmolst.Text) -or 
+        [string]::IsNullOrWhiteSpace($txtEmployee.Text) -or 
+        [string]::IsNullOrWhiteSpace($txtExport.Text)) {
+        [System.Windows.MessageBox]::Show("Please select all three paths.", "Missing Paths", "OK", "Warning")
         return
     }
 
-    $btnRun.Enabled = $false
-    $btnRun.Text = "Processing Datasets... Please Wait"
-    [System.Windows.Forms.Application]::DoEvents()
+    if (-not (Test-Path $txtEmolst.Text)) { [System.Windows.MessageBox]::Show("eMOLST file not found."); return }
+    if (-not (Test-Path $txtEmployee.Text)) { [System.Windows.MessageBox]::Show("Employee file not found."); return }
+    if (-not (Test-Path $txtExport.Text)) { [System.Windows.MessageBox]::Show("Export folder not found."); return }
 
-    # Define dynamic target files
-    $matchedPath   = Join-Path $txtExport.Text "eMOLST_Matched_Employees.csv"
-    $unmatchedPath = Join-Path $txtExport.Text "eMOLST_Unmatched_Employees.csv"
-    $conflictPath  = Join-Path $txtExport.Text "eMOLST_Active_Employee_Terminated_Conflicts.csv"
-
-    # Stage 1: eMOLST Data Loading & Raw Record Profiling
-    $rawEmolst = Import-Csv -Path $txtEmolst.Text
-    $lblEmolstTotal.Text = "{0:N0}" -f $rawEmolst.Count
-    [System.Windows.Forms.Application]::DoEvents()
-
-    # Stage 2: eMOLST Disenrolled Filtering
-    $emolstActiveData = $rawEmolst | Where-Object { $_.Disenrolled -eq 'FALSE' }
-    $lblEmolstActive.Text = "{0:N0}" -f $emolstActiveData.Count
-    [System.Windows.Forms.Application]::DoEvents()
-
-    # Stage 3: Load Employee File (NoHeader processing using Row index 4 offset)
-    $rawExcelData = Import-Excel -Path $txtEmployee.Text -NoHeader
-    $lblEmpTotal.Text = "{0:N0}" -f ($rawExcelData.Count - 5)
-    [System.Windows.Forms.Application]::DoEvents()
-
-    # Stage 4: Index Header Array Mappings
-    $headerRowIndex = 4
-    $headersArray = $rawExcelData[$headerRowIndex].PSObject.Properties.Value
-
-    $colEmpNo  = [array]::IndexOf($headersArray, "EmpNumber") + 1
-    $colLogin  = [array]::IndexOf($headersArray, "LoginName") + 1
-    $colStatus = [array]::IndexOf($headersArray, "PersonnelStatus") + 1
-    $colTerm   = [array]::IndexOf($headersArray, "TerminationDate") + 1
-    $colMgr    = [array]::IndexOf($headersArray, "Manager Preferred Name") + 1
-    $colHire   = [array]::IndexOf($headersArray, "SystemHireDate") + 1
-
-    # Stage 5: Construct Search Dictionary Array Mapping
-    $employeeLookup = @{}
-    for ($i = $headerRowIndex + 1; $i -lt $rawExcelData.Count; $i++) {
-        $empRow = $rawExcelData[$i]
-        $rawLogin = $empRow."P$colLogin"
-        if ($rawLogin) {
-            $cleanLogin = ($rawLogin -replace '^.*\\').Trim()
-            if (-not $employeeLookup.ContainsKey($cleanLogin)) {
-                $employeeLookup[$cleanLogin] = $empRow
-            }
-        }
+    # Module checks
+    if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
+        [System.Windows.MessageBox]::Show("The ImportExcel module is required.`nRun: Install-Module ImportExcel -Scope CurrentUser", "Missing Module")
+        return
+    }
+    $doAD = $chkDoAD.IsChecked
+    if ($doAD -and -not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+        [System.Windows.MessageBox]::Show("Active Directory module not available. Uncheck the AD option or install RSAT.", "Missing Module")
+        return
     }
 
-    # Stage 6: Structural Reconciliation and Variable Extraction
-    $matchedRecords   = [System.Collections.Generic.List[PSCustomObject]]::new()
-    $unmatchedRecords = [System.Collections.Generic.List[PSCustomObject]]::new()
-    $conflictRecords  = [System.Collections.Generic.List[PSCustomObject]]::new()
+    $btnRun.IsEnabled = $false
+    $btnReset.IsEnabled = $false
+    Reset-UI
+    Write-Log "Starting reconciliation..."
+    Set-Status "Loading eMOLST data..." 5
 
-    $cntConflict = 0
-    $cntAdEnabled = 0; $cntAdDisabled = 0; $cntAdNotFound = 0; $cntAdOther = 0
+    try {
+        $matchedPath   = Join-Path $txtExport.Text "eMOLST_Matched_Employees.csv"
+        $unmatchedPath = Join-Path $txtExport.Text "eMOLST_Unmatched_Employees.csv"
+        $conflictPath  = Join-Path $txtExport.Text "eMOLST_Active_Employee_Terminated_Conflicts.csv"
 
-    foreach ($user in $emolstActiveData) {
-        $username = $user.'Desired Username'
-        if ($username) { $username = $username.Trim() }
+        # Stage 1 – eMOLST
+        $rawEmolst = Import-Csv -Path $txtEmolst.Text
+        $lblEmolstTotal.Text = "{0:N0}" -f $rawEmolst.Count
+        Write-Log "Loaded $($rawEmolst.Count) eMOLST records."
+        Set-Status "Filtering active eMOLST users..." 15
 
-        if ($employeeLookup.ContainsKey($username)) {
-            $empMatch = $employeeLookup[$username]
-            $empNumber       = $empMatch."P$colEmpNo"
-            $terminationDate = $empMatch."P$colTerm"
-            $disenrolled     = $user.Disenrolled
-            $adUserEnabled   = "N/A"
+        $emolstActiveData = $rawEmolst | Where-Object { $_.Disenrolled -eq 'FALSE' }
+        $lblEmolstActive.Text = "{0:N0}" -f $emolstActiveData.Count
+        Write-Log "Active eMOLST users (Disenrolled = FALSE): $($emolstActiveData.Count)"
+        Set-Status "Loading Employee Excel..." 25
 
-            # Check for Status Conflict Criteria
-            $hasTermDate = -not [string]::IsNullOrWhiteSpace($terminationDate)
-            
-            if ($hasTermDate) {
-                $cntConflict++
-                
-                # Reach out to Active Directory to resolve status mismatch
-                if ($empNumber) {
-                    try {
-                        $adUser = Get-ADUser -Filter "EmployeeID -like '$empNumber'" -ErrorAction Stop
-                        if ($adUser) {
-                            if ($adUser.Enabled) {
-                                $adUserEnabled = "Enabled"
-                                $cntAdEnabled++
-                            } else {
-                                $adUserEnabled = "Disabled"
-                                $cntAdDisabled++
-                            }
-                        } else {
-                            $adUserEnabled = "Not Found"
-                            $cntAdNotFound++
-                        }
-                    } catch {
-                        $adUserEnabled = "Other/Error"
-                        $cntAdOther++
-                    }
-                } else {
-                    $adUserEnabled = "Not Found"
-                    $cntAdNotFound++
+        # Stage 2 – Excel
+        Import-Module ImportExcel -ErrorAction Stop
+        $rawExcelData = Import-Excel -Path $txtEmployee.Text -NoHeader
+        $empRecordCount = [Math]::Max(0, $rawExcelData.Count - 5)
+        $lblEmpTotal.Text = "{0:N0}" -f $empRecordCount
+        Write-Log "Loaded Excel data (approx. $empRecordCount employee rows after header offset)."
+        Set-Status "Mapping Excel columns..." 35
+
+        $headerRowIndex = 4
+        if ($rawExcelData.Count -le $headerRowIndex) { throw "Excel file does not contain expected header row at index $headerRowIndex." }
+        $headersArray = $rawExcelData[$headerRowIndex].PSObject.Properties.Value
+
+        $colEmpNo  = [array]::IndexOf($headersArray, "EmpNumber") + 1
+        $colLogin  = [array]::IndexOf($headersArray, "LoginName") + 1
+        $colStatus = [array]::IndexOf($headersArray, "PersonnelStatus") + 1
+        $colTerm   = [array]::IndexOf($headersArray, "TerminationDate") + 1
+        $colMgr    = [array]::IndexOf($headersArray, "Manager Preferred Name") + 1
+        $colHire   = [array]::IndexOf($headersArray, "SystemHireDate") + 1
+
+        if ($colEmpNo -lt 1 -or $colLogin -lt 1 -or $colTerm -lt 1) {
+            throw "Required columns (EmpNumber, LoginName, TerminationDate) not found in Excel header row."
+        }
+        Write-Log "Column mapping complete (LoginName column index $colLogin, etc.)."
+        Set-Status "Building employee lookup..." 45
+
+        # Stage 3 – Lookup
+        $employeeLookup = @{}
+        for ($i = $headerRowIndex + 1; $i -lt $rawExcelData.Count; $i++) {
+            $empRow = $rawExcelData[$i]
+            $rawLogin = $empRow."P$colLogin"
+            if ($rawLogin) {
+                $cleanLogin = ($rawLogin -replace '^.*\\').Trim()
+                if ($cleanLogin -and -not $employeeLookup.ContainsKey($cleanLogin)) {
+                    $employeeLookup[$cleanLogin] = $empRow
                 }
             }
+        }
+        Write-Log "Employee lookup built with $($employeeLookup.Count) unique logins."
+        Set-Status "Matching records..." 55
 
-            # Compile standard structure values
-            $recordObj = [PSCustomObject]@{
-                'eMOLST_Username'     = $user.'Desired Username'
-                'eMOLST_FirstName'    = $user.'First Name'
-                'eMOLST_MiddleName'   = $user.'Middle Name/Initial'
-                'eMOLST_LastName'     = $user.'Last Name'
-                'eMOLST_Title'        = $user.'Title'
-                'eMOLST_Email'        = $user.'Email'
-                'eMOLST_NPI'          = $user.'NPI #'
-                'eMOLST_License'      = $user.'State License #'
-                'eMOLST_Disenrolled'  = $disenrolled
-                'EmpNumber'           = $empNumber
-                'Employee_LoginName'  = $empMatch."P$colLogin"
-                'PersonnelStatus'     = $empMatch."P$colStatus"
-                'TerminationDate'     = $terminationDate
-                'ManagerName'         = $empMatch."P$colMgr"
-                'SystemHireDate'      = $empMatch."P$colHire"
-                'AD_Status_Conflict'  = $adUserEnabled
+        # Stage 4 – Match
+        $matchedRecords   = [System.Collections.Generic.List[PSCustomObject]]::new()
+        $unmatchedRecords = [System.Collections.Generic.List[PSCustomObject]]::new()
+        $conflictRecords  = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+        $cntConflict = 0
+        $cntAdEnabled = 0; $cntAdDisabled = 0; $cntAdNotFound = 0; $cntAdOther = 0
+        $total = $emolstActiveData.Count
+        $idx = 0
+
+        foreach ($user in $emolstActiveData) {
+            $idx++
+            if ($idx % 50 -eq 0 -or $idx -eq $total) {
+                $pct = 55 + [int](($idx / [Math]::Max(1,$total)) * 30)
+                Set-Status "Matching... $idx / $total" $pct
             }
 
-            $matchedRecords.Add($recordObj)
-            if ($hasTermDate) { $conflictRecords.Add($recordObj) }
+            $username = $user.'Desired Username'
+            if ($username) { $username = $username.Trim() }
 
-        } else {
-            $unmatchedRecords.Add($user)
+            if ($username -and $employeeLookup.ContainsKey($username)) {
+                $empMatch = $employeeLookup[$username]
+                $empNumber       = $empMatch."P$colEmpNo"
+                $terminationDate = $empMatch."P$colTerm"
+                $adUserEnabled   = "N/A"
+
+                $hasTermDate = -not [string]::IsNullOrWhiteSpace($terminationDate)
+                if ($hasTermDate) {
+                    $cntConflict++
+                    if ($doAD -and $empNumber) {
+                        try {
+                            $adUser = Get-ADUser -Filter "EmployeeID -like '$empNumber'" -ErrorAction Stop
+                            if ($adUser) {
+                                if ($adUser.Enabled) {
+                                    $adUserEnabled = "Enabled"
+                                    $cntAdEnabled++
+                                } else {
+                                    $adUserEnabled = "Disabled"
+                                    $cntAdDisabled++
+                                }
+                            } else {
+                                $adUserEnabled = "Not Found"
+                                $cntAdNotFound++
+                            }
+                        } catch {
+                            $adUserEnabled = "Other/Error"
+                            $cntAdOther++
+                        }
+                    } elseif ($doAD) {
+                        $adUserEnabled = "Not Found"
+                        $cntAdNotFound++
+                    } else {
+                        $adUserEnabled = "Skipped"
+                    }
+                }
+
+                $recordObj = [PSCustomObject]@{
+                    'eMOLST_Username'     = $user.'Desired Username'
+                    'eMOLST_FirstName'    = $user.'First Name'
+                    'eMOLST_MiddleName'   = $user.'Middle Name/Initial'
+                    'eMOLST_LastName'     = $user.'Last Name'
+                    'eMOLST_Title'        = $user.'Title'
+                    'eMOLST_Email'        = $user.'Email'
+                    'eMOLST_NPI'          = $user.'NPI #'
+                    'eMOLST_License'      = $user.'State License #'
+                    'eMOLST_Disenrolled'  = $user.Disenrolled
+                    'EmpNumber'           = $empNumber
+                    'Employee_LoginName'  = $empMatch."P$colLogin"
+                    'PersonnelStatus'     = $empMatch."P$colStatus"
+                    'TerminationDate'     = $terminationDate
+                    'ManagerName'         = $empMatch."P$colMgr"
+                    'SystemHireDate'      = $empMatch."P$colHire"
+                    'AD_Status_Conflict'  = $adUserEnabled
+                }
+                $matchedRecords.Add($recordObj)
+                if ($hasTermDate) { $conflictRecords.Add($recordObj) }
+            } else {
+                $unmatchedRecords.Add($user)
+            }
         }
+
+        # Update metrics
+        $lblMatched.Text    = "{0:N0}" -f $matchedRecords.Count
+        $lblUnmatched.Text  = "{0:N0}" -f $unmatchedRecords.Count
+        $lblConflict.Text   = "{0:N0}" -f $cntConflict
+        $lblAdEnabled.Text  = "{0:N0}" -f $cntAdEnabled
+        $lblAdDisabled.Text = "{0:N0}" -f $cntAdDisabled
+        $lblAdNotFound.Text = "{0:N0}" -f $cntAdNotFound
+        $lblAdOther.Text    = "{0:N0}" -f $cntAdOther
+
+        Write-Log "Matching complete. Matched: $($matchedRecords.Count), Unmatched: $($unmatchedRecords.Count), Conflicts: $cntConflict"
+        if ($doAD) {
+            Write-Log "AD results – Enabled: $cntAdEnabled, Disabled: $cntAdDisabled, Not Found: $cntAdNotFound, Other: $cntAdOther"
+        } else {
+            Write-Log "AD lookups were skipped."
+        }
+        Set-Status "Exporting CSV files..." 90
+
+        # Export
+        $matchedRecords   | Export-Csv -Path $matchedPath   -NoTypeInformation -Encoding UTF8
+        $unmatchedRecords | Export-Csv -Path $unmatchedPath -NoTypeInformation -Encoding UTF8
+        $conflictRecords  | Export-Csv -Path $conflictPath  -NoTypeInformation -Encoding UTF8
+
+        Write-Log "Exports written:"
+        Write-Log "  $matchedPath"
+        Write-Log "  $unmatchedPath"
+        Write-Log "  $conflictPath"
+
+        $script:lastExportFolder = $txtExport.Text
+        $script:lastConflictPath = $conflictPath
+        $btnOpenFolder.IsEnabled = $true
+        $btnViewConflicts.IsEnabled = ($conflictRecords.Count -gt 0)
+
+        Set-Status "Complete." 100
+        Write-Log "Reconciliation finished successfully."
+        [System.Windows.MessageBox]::Show("Audit complete.`nExports written to:`n$($txtExport.Text)", "Success")
     }
-
-    # Finalize screen metric counts
-    $lblMatched.Text    = "{0:N0}" -f $matchedRecords.Count
-    $lblUnmatched.Text  = "{0:N0}" -f $unmatchedRecords.Count
-    $lblConflict.Text   = "{0:N0}" -f $cntConflict
-    $lblAdEnabled.Text  = "{0:N0}" -f $cntAdEnabled
-    $lblAdDisabled.Text = "{0:N0}" -f $cntAdDisabled
-    $lblAdNotFound.Text = "{0:N0}" -f $cntAdNotFound
-    $lblAdOther.Text    = "{0:N0}" -f $cntAdOther
-    [System.Windows.Forms.Application]::DoEvents()
-
-    # Stage 8: Direct Disk Export Pipelines
-    $matchedRecords   | Export-Csv -Path $matchedPath -NoTypeInformation -Encoding UTF8
-    $unmatchedRecords | Export-Csv -Path $unmatchedPath -NoTypeInformation -Encoding UTF8
-    $conflictRecords  | Export-Csv -Path $conflictPath -NoTypeInformation -Encoding UTF8
-
-    # Reset GUI Control Elements
-    $btnRun.Enabled = $true
-    $btnRun.Text = "Begin Reconciliation Process"
-    
-    [System.Windows.Forms.MessageBox]::Show("Audit complete and exports successfully compiled inside target folder!", "Process Finalized", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    catch {
+        Write-Log "ERROR: $($_.Exception.Message)"
+        Set-Status "Failed." 0
+        [System.Windows.MessageBox]::Show("Error during processing:`n$($_.Exception.Message)", "Error", "OK", "Error")
+    }
+    finally {
+        $btnRun.IsEnabled = $true
+        $btnReset.IsEnabled = $true
+    }
 })
 
-# Display window form frame
-$form.ShowDialog()
+# ---------- Show ----------
+Reset-UI
+$window.ShowDialog() | Out-Null
