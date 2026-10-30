@@ -41,3 +41,41 @@ E0D509   E0D509
 NS031859 NS031859      
 e40369   e40369        
 e40823   e40823        
+
+
+
+
+$ldapFiltersToTry = New-Object System.Collections.Generic.List[string]
+
+# Search all relevant AD attributes in one query.
+# Supports partial names, EmployeeIDs, SAM accounts, and email.
+
+$ldapConditions = @(
+    "(employeeID=$st)"
+    "(sAMAccountName=$st)"
+    "(sn=$st*)"
+    "(sn=*$st*)"
+    "(givenName=$st*)"
+    "(displayName=*$st*)"
+    "(cn=*$st*)"
+)
+
+if ($stRaw -match '^\S+@\S+\.\S+$') {
+    $ldapConditions += "(mail=$st)"
+}
+elseif ($stRaw -notmatch '\s') {
+    $ldapConditions += "(sAMAccountName=$st*)"
+    $ldapConditions += "(sAMAccountName=*$st*)"
+}
+
+$ldap = "(&(objectCategory=person)(objectClass=user)(|$($ldapConditions -join '')))"
+
+$users = @(
+    Get-ADUser -LDAPFilter $ldap `
+        -Properties $properties `
+        -ResultSetSize $MaxResults `
+        -ErrorAction Stop
+)
+
+
+
