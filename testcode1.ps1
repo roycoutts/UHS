@@ -78,4 +78,43 @@ $users = @(
 )
 
 
+#########################
 
+$SearchTerm = "Kosick"
+$MaxResults = 200
+
+$properties = @(
+    "Enabled"
+    "LockedOut"
+    "EmployeeID"
+    "SamAccountName"
+    "DisplayName"
+    "GivenName"
+    "Surname"
+    "Mail"
+    "Department"
+    "Title"
+)
+
+$ldap = "(&(objectCategory=person)(objectClass=user)(|(employeeID=$SearchTerm)(sAMAccountName=$SearchTerm)(sn=$SearchTerm*)(displayName=*$SearchTerm*)(givenName=$SearchTerm*)(cn=*$SearchTerm*)))"
+
+Write-Host "LDAP Filter: $ldap" -ForegroundColor Cyan
+
+$users = @(
+    Get-ADUser -LDAPFilter $ldap `
+        -Properties $properties `
+        -ResultSetSize $MaxResults `
+        -ErrorAction Stop
+)
+
+Write-Host "Results: $($users.Count)" -ForegroundColor Green
+
+$users |
+    Select-Object EmployeeID, SamAccountName, GivenName, Surname, DisplayName |
+    Format-Table -AutoSize
+
+
+
+
+
+    
