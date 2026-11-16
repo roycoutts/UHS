@@ -1,120 +1,53 @@
-$tests = @(
-    '(sn=Kosick)'
-    '(sn=Kosick*)'
-    '(sn=Kosi*)'
-    '(sn=Kos*)'
-    '(&(objectCategory=person)(objectClass=user)(sn=Kosick*))'
-)
+Create a PowerShell 5.1 GUI using XAML/WPF. (Topmost = True)
 
-foreach ($filter in $tests) {
-    $users = @(Get-ADUser -LDAPFilter $filter)
+Create Buttons
+- [Add Tasks]
+- [Add Users]  
+- [Add Clin Loc]
+- [Add Prof Loc]  
+- [Add SSO]
+- [Launch Ivanti]
+- [Launch Dr Master]
+- [Launch EMOLST]
+- [Load EPIC User]
+- [Load EMOLST User]
+- [Load Dr Master User]
+- [Load Ivanti Summary]
 
-    Write-Host "`nFilter: $filter" -ForegroundColor Cyan
-    Write-Host "Results: $($users.Count)"
+  
+Tasks (#)  
+Users (#)
 
-    $users | Select-Object Name, SamAccountName
-}
+Button Functions
+*Add Tasks*
+  Accepts [string] (If value contains a comma then split() and trim() into an [array] of TaskIDs)
+  Each Task will contain:
+  - TaskID
+  - TaskType
+  - TaskNote
+  - EmolstUserName
+  - EmolstAdminRole
+  - EmolstClinicalRole
+  - EmolstTitle
+  - EmolstPrefix
+  - EmolstFirstName
+  - EmolstMiddleName
+  - EmolstLastName
+  - EmolstSuffix
+  - EmolstStreet
+  - EmolstCity
+  - EmolstState
+  - EmolstZip
+  - EmolstPhone
+  - EmolstEmail
+  - EmolstNPI
+  - EmolstProvStateLic
+  - EmolstSSOUsername
+  - EmolstIdentityProvider
+  
+*Add Users*
+  - Loop through each Task - Accepts [string] (Searched Active Directory for user)  
+    $SearchTerm = ''
+    $filter = "SamAccountName -eq '{0}' -or CN -eq '{0}' -or Name -eq '{0}' -or DisplayName -eq '{0}' -or EmailAddress -eq '{0}' -or EmployeeID -eq '{0}' -or mail -eq '{0}' -or mailNickname -eq '{0}' -or GivenName -eq '{0}' -or OtherName -eq '{0}' -or MiddleName -eq '{0}' -or sn -eq '{0}' -or surname -eq '{0}' -or UserPrincipalName -eq '{0}'" -f ($SearchTerm -replace "'", "''")
+    $users = Get-ADUser -Filter $filter -Properties *
 
-
-Filter: (sn=Kosick)
-Results: 1
-
-
-Filter: (sn=Kosick*)
-Results: 1
-
-Filter: (sn=Kosi*)
-Results: 1
-
-Filter: (sn=Kos*)
-Results: 4
-
-Filter: (&(objectCategory=person)(objectClass=user)(sn=Kosick*))
-Results: 1
-Name     SamAccountName
-----     --------------
-e40823   e40823        
-e40823   e40823        
-e40823   e40823        
-e40823   e40823        
-E0D509   E0D509        
-NS031859 NS031859      
-e40369   e40369        
-e40823   e40823        
-
-
-
-
-$ldapFiltersToTry = New-Object System.Collections.Generic.List[string]
-
-# Search all relevant AD attributes in one query.
-# Supports partial names, EmployeeIDs, SAM accounts, and email.
-
-$ldapConditions = @(
-    "(employeeID=$st)"
-    "(sAMAccountName=$st)"
-    "(sn=$st*)"
-    "(sn=*$st*)"
-    "(givenName=$st*)"
-    "(displayName=*$st*)"
-    "(cn=*$st*)"
-)
-
-if ($stRaw -match '^\S+@\S+\.\S+$') {
-    $ldapConditions += "(mail=$st)"
-}
-elseif ($stRaw -notmatch '\s') {
-    $ldapConditions += "(sAMAccountName=$st*)"
-    $ldapConditions += "(sAMAccountName=*$st*)"
-}
-
-$ldap = "(&(objectCategory=person)(objectClass=user)(|$($ldapConditions -join '')))"
-
-$users = @(
-    Get-ADUser -LDAPFilter $ldap `
-        -Properties $properties `
-        -ResultSetSize $MaxResults `
-        -ErrorAction Stop
-)
-
-
-#########################
-
-$SearchTerm = "Kosick"
-$MaxResults = 200
-
-$properties = @(
-    "Enabled"
-    "LockedOut"
-    "EmployeeID"
-    "SamAccountName"
-    "DisplayName"
-    "GivenName"
-    "Surname"
-    "Mail"
-    "Department"
-    "Title"
-)
-
-$ldap = "(&(objectCategory=person)(objectClass=user)(|(employeeID=$SearchTerm)(sAMAccountName=$SearchTerm)(sn=$SearchTerm*)(displayName=*$SearchTerm*)(givenName=$SearchTerm*)(cn=*$SearchTerm*)))"
-
-Write-Host "LDAP Filter: $ldap" -ForegroundColor Cyan
-
-$users = @(
-    Get-ADUser -LDAPFilter $ldap `
-        -Properties $properties `
-        -ResultSetSize $MaxResults `
-        -ErrorAction Stop
-)
-
-Write-Host "Results: $($users.Count)" -ForegroundColor Green
-
-$users |
-    Select-Object EmployeeID, SamAccountName, GivenName, Surname, DisplayName |
-    Format-Table -AutoSize
-
-
-
-
-
-    
