@@ -450,6 +450,33 @@ function Add-AdUserForTask {
     Write-Activity ('Linked {0} to task {1} ({2} AD match(es)).' -f $user.SamAccountName, $Task.TaskID, $matches.Count)
 }
 
+function Expand-UhsLocationRecords {
+    param($Data)
+    # Older UHS exports serialized a Generic.List as a wrapper with SyncRoot.
+    # Arrays also expose a SyncRoot .NET property, so check for arrays FIRST.
+    if ($null -eq $Data) { return }
+    if ($Data -is [array]) {
+        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
+        return
+    }
+    if ($Data -is [System.Collections.IDictionary]) {
+        if ($Data.Contains('Name')) { Write-Output ([pscustomobject]$Data); return }
+        if ($Data.Contains('SyncRoot')) { Expand-UhsLocationRecords -Data $Data['SyncRoot']; return }
+    }
+    $properties = $Data.PSObject.Properties
+    if ($null -ne $properties['Name'] -and -not [string]::IsNullOrWhiteSpace([string]$Data.Name)) {
+        Write-Output $Data
+        return
+    }
+    if ($null -ne $properties['SyncRoot']) {
+        Expand-UhsLocationRecords -Data $Data.SyncRoot
+        return
+    }
+    if ($Data -is [System.Collections.IEnumerable] -and $Data -isnot [string]) {
+        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
+    }
+}
+
 function Read-ClinicalLocations {
     $script:Locations.Clear()
     if (-not (Test-Path -LiteralPath $script:LocationsPath -PathType Leaf)) {
@@ -460,9 +487,10 @@ function Read-ClinicalLocations {
     }
     try {
         $raw = [System.IO.File]::ReadAllText($script:LocationsPath)
-        $records = @(ConvertFrom-Json -InputObject $raw -ErrorAction Stop)
+        $parsed = ConvertFrom-Json -InputObject $raw -ErrorAction Stop
+        $records = @(Expand-UhsLocationRecords -Data $parsed)
         foreach ($r in $records) {
-            if ($null -eq $r -or [string]::IsNullOrWhiteSpace([string]$r.Name)) { continue }
+            if ($null -eq $r -or $r.Name -is [array] -or [string]::IsNullOrWhiteSpace([string]$r.Name)) { continue }
             $script:Locations.Add([pscustomobject]@{
                 Name=[string]$r.Name; Location=[string]$r.Location; Phone=[string]$r.Phone
                 Address1=[string]$r.Address1; Address2=[string]$r.Address2
@@ -484,7 +512,15 @@ function Save-ClinicalAliases {
     if (-not (Test-Path -LiteralPath $folder)) { $null = New-Item -ItemType Directory -Path $folder -Force }
     $tmp = Join-Path $folder ('.alias-{0}.tmp' -f [guid]::NewGuid().ToString('N'))
     try {
-        $json = ConvertTo-Json -InputObject @($script:Locations) -Depth 8
+        # Serialize individual facility objects as a JSON array, not a collection wrapper.
+        $rows = @($script:Locations | ForEach-Object {
+            [pscustomobject][ordered]@{
+                Name=[string]$_.Name; Location=[string]$_.Location; Phone=[string]$_.Phone
+                Address1=[string]$_.Address1; Address2=[string]$_.Address2
+                Locality=[string]$_.Locality; State=[string]$_.State; Zip=[string]$_.Zip
+            }
+        })
+        $json = ConvertTo-Json -InputObject $rows -Depth 8
         [System.IO.File]::WriteAllText($tmp,$json,[System.Text.UTF8Encoding]::new($true))
         if (Test-Path -LiteralPath $script:LocationsPath) {
             Copy-Item -LiteralPath $script:LocationsPath -Destination ($script:LocationsPath + '.bak') -Force
