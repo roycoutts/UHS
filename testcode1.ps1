@@ -101,10 +101,7 @@ Add-Type -AssemblyName System.Xaml
             <WrapPanel Grid.Row="0" Margin="0,0,0,3">
                 <Button x:Name="btnAddTasks" Content="Add Tasks" Background="#17657A"/>
                 <Button x:Name="btnAddUsers" Content="Add Users" Background="#17657A"/>
-                <Button x:Name="btnAddClinLoc" Content="Add Clin Loc"/>
-                <Button x:Name="btnShowClinLoc" Content="Show Clin Loc"/>
-                <Button x:Name="btnShowProvLoc" Content="Show Prov Loc"/>
-                <Button x:Name="btnAddProfLoc" Content="Add Prof Loc"/>
+                <Button x:Name="btnAddLocations" Content="Add Locations" Background="#17657A"/>
                 <Button x:Name="btnAddSSO" Content="Add SSO"/>
                 <Button x:Name="btnLaunchIvanti" Content="Launch Ivanti"/>
                 <Button x:Name="btnLaunchDrMaster" Content="Launch Dr Master"/>
@@ -152,6 +149,7 @@ Add-Type -AssemblyName System.Xaml
                             <DataGridTextColumn Header="Task Type" Binding="{Binding TaskType}" Width="125"/>
                             <DataGridTextColumn Header="Task Note" Binding="{Binding TaskNote}" Width="*"/>
                             <DataGridTextColumn Header="Clinical Location" Binding="{Binding ClinicalLocationDisplay}" Width="170"/>
+                            <DataGridTextColumn Header="Provider Location" Binding="{Binding ProviderLocationDisplay}" Width="170"/>
                             <DataGridTextColumn Header="EMOLST User" Binding="{Binding EmolstUserName}" Width="140"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -162,6 +160,7 @@ Add-Type -AssemblyName System.Xaml
                             <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*"/>
                             <DataGridTextColumn Header="SamAccount" Binding="{Binding SamAccountName}" Width="120"/>
                             <DataGridTextColumn Header="Employee ID" Binding="{Binding EmployeeID}" Width="105"/>
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="130"/>
                             <DataGridTextColumn Header="Email" Binding="{Binding EmailAddress}" Width="190"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -202,7 +201,7 @@ function ConvertFrom-WpfXaml {
 
 $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
-    'btnAddTasks','btnAddUsers','btnAddClinLoc','btnShowClinLoc','btnShowProvLoc','btnAddProfLoc','btnAddSSO',
+    'btnAddTasks','btnAddUsers','btnAddLocations','btnAddSSO',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
     'btnLoadEPICUser','btnLoadEMOLSTUser','btnLoadDrMasterUser','btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
@@ -228,7 +227,9 @@ $script:TaskFieldNames = @(
     'EmolstCity','EmolstState','EmolstZip','EmolstPhone','EmolstEmail',
     'EmolstNPI','EmolstProvStateLic','EmolstSSOUsername','EmolstIdentityProvider',
     'ClinicalLocationName','ClinicalLocationAlias','ClinicalLocationDisplay','ClinicalLocationAddress',
-    'ClinicalLocationPhone'
+    'ClinicalLocationPhone',
+    'ProviderLocationName','ProviderLocationAlias','ProviderLocationDisplay','ProviderLocationAddress',
+    'ProviderLocationPhone'
 )
 
 function Write-Activity {
@@ -385,6 +386,7 @@ function Add-TaskIDs {
         $added++
     }
     Update-Counters
+    Update-WorkflowButtons
     if ($added -gt 0) {
         $gridTasks.SelectedItem = $script:Tasks[$script:Tasks.Count - 1]
     }
@@ -428,6 +430,7 @@ function Add-AdUserForTask {
         DisplayName = [string]$user.DisplayName
         SamAccountName = [string]$user.SamAccountName
         EmployeeID = [string]$user.EmployeeID
+        Title = [string]$user.Title
         EmailAddress = [string]$user.EmailAddress
         UserPrincipalName = [string]$user.UserPrincipalName
         GivenName = [string]$user.GivenName
@@ -443,6 +446,7 @@ function Add-AdUserForTask {
         Update-TaskDetails
     }
     Update-Counters
+    Update-WorkflowButtons
     Write-Activity ('Linked {0} to task {1} ({2} AD match(es)).' -f $user.SamAccountName, $Task.TaskID, $matches.Count)
 }
 
@@ -511,7 +515,7 @@ function Show-ClinicalLocationDetails {
     [System.Windows.MessageBox]::Show($window,$message,'Show Clin Loc','OK','Information') | Out-Null
 }
 function Show-LocationPicker {
-    param([string]$Title,[switch]$AliasEditor,$Task)
+    param([string]$Title,[switch]$AliasEditor,$Task,$DialogOwner = $window)
     [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -522,8 +526,6 @@ function Show-LocationPicker {
         <TextBox x:Name="txtSearch" DockPanel.Dock="Top" Margin="0,0,0,9" Padding="8,6"
                  Background="#F0F5FB" Foreground="#142337" ToolTip="Search name, alias, city, or address"/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button x:Name="btnShowClin" Content="Show Clin Loc" Padding="10,7" Margin="0,0,7,0"/>
-            <Button x:Name="btnShowProv" Content="Show Prov Loc" Padding="10,7" Margin="0,0,7,0"/>
             <Button x:Name="btnAlias" Content="Edit Alias" Padding="10,7" Margin="0,0,7,0"/>
             <Button x:Name="btnCancel" Content="Cancel" Padding="10,7" Margin="0,0,7,0"/>
             <Button x:Name="btnChoose" Content="Use Selected Location" IsDefault="True" Padding="10,7"/>
@@ -546,10 +548,10 @@ function Show-LocationPicker {
 '@
     $dlg = ConvertFrom-WpfXaml $xaml
     $dlg.Title = $Title
-    $dlg.Owner = $window
+    $dlg.Owner = $DialogOwner
     $dlg.Topmost = $true
     $lbl = $dlg.FindName('lblIntro')
-    $lbl.Text = if ($AliasEditor) { 'Edit aliases in the Location field. Changes are saved in local JSON immediately.' } else { 'Task {0}: select a clinical location. Use Edit Alias to assign a short name.' -f $Task.TaskID }
+    $lbl.Text = if ($AliasEditor) { 'Edit aliases in the Location field. Changes are saved in local JSON immediately.' } else { 'Task {0}: search and select a location. Use Edit Alias to assign a short name.' -f $Task.TaskID }
     $grid = $dlg.FindName('gridLocations')
     $search = $dlg.FindName('txtSearch')
     $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($script:Locations)
@@ -565,14 +567,6 @@ function Show-LocationPicker {
     }
     $view.Filter = $filterHandler
     $search.Add_TextChanged({ $view.Refresh() })
-    $dlg.FindName('btnShowClin').Add_Click({
-        $loc = $grid.SelectedItem
-        if ($null -eq $loc) { return }
-        [System.Windows.MessageBox]::Show($dlg, ("Name: $($loc.Name)`nAlias: $($loc.Location)`nAddress: $($loc.Address1) $($loc.Address2)`nCity: $($loc.Locality), $($loc.State) $($loc.Zip)`nPhone: $($loc.Phone)"),'Clinical Location','OK','Information') | Out-Null
-    })
-    $dlg.FindName('btnShowProv').Add_Click({
-        [System.Windows.MessageBox]::Show($dlg,'Professional/provider locations are not configured yet.','Show Prov Loc','OK','Information') | Out-Null
-    })
     $dlg.FindName('btnAlias').Add_Click({
         $loc = $grid.SelectedItem
         if ($null -eq $loc) { return }
@@ -599,6 +593,121 @@ function Show-LocationPicker {
     $dlg.Add_ContentRendered({ $search.Focus() })
     if ($dlg.ShowDialog() -eq $true) { return $dlg.Tag }
     return $null
+}
+
+function Get-TaskUser {
+    param($Task)
+    return @($script:Users | Where-Object { $_.TaskID -eq $Task.TaskID } | Select-Object -First 1)[0]
+}
+
+function Update-WorkflowButtons {
+    $hasTasks = ($script:Tasks.Count -gt 0)
+    $btnAddUsers.IsEnabled = $hasTasks
+    $complete = $hasTasks
+    if ($complete) {
+        foreach ($task in $script:Tasks) {
+            if ($null -eq (Get-TaskUser -Task $task)) { $complete = $false; break }
+        }
+    }
+    $btnAddLocations.IsEnabled = $complete
+    $btnEditAliases.IsEnabled = $complete
+    $btnRefreshLocations.IsEnabled = $complete
+    # Steps following Add Users cannot run until each task has an assigned AD user.
+    foreach ($button in @($btnAddSSO,$btnLaunchIvanti,$btnLaunchDrMaster,$btnLaunchEMOLST,
+                           $btnLoadEPICUser,$btnLoadEMOLSTUser,$btnLoadDrMasterUser,$btnLoadIvantiSummary)) {
+        $button.IsEnabled = $complete
+    }
+}
+
+function Set-TaskProviderLocation {
+    param($Task,$Location)
+    $Task.ProviderLocationName = [string]$Location.Name
+    $Task.ProviderLocationAlias = [string]$Location.Location
+    $Task.ProviderLocationDisplay = if ([string]::IsNullOrWhiteSpace([string]$Location.Location)) { [string]$Location.Name } else { '{0} ({1})' -f $Location.Location,$Location.Name }
+    $Task.ProviderLocationAddress = (@([string]$Location.Address1,[string]$Location.Address2,[string]$Location.Locality,[string]$Location.State,[string]$Location.Zip) | Where-Object { $_ }) -join ', '
+    $Task.ProviderLocationPhone = [string]$Location.Phone
+    $gridTasks.Items.Refresh()
+    Update-TaskDetails
+    Write-Activity ('Task {0}: provider location set to {1}.' -f $Task.TaskID,$Task.ProviderLocationDisplay)
+}
+
+function Show-TaskLocationDialog {
+    param($Task, [int]$Index, [int]$Total)
+    $user = Get-TaskUser -Task $Task
+    if ($null -eq $user) { return $false }
+    [xml]$xaml = @'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="790" Height="460" MinWidth="680" MinHeight="410"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="#152237" Foreground="White">
+    <DockPanel Margin="18">
+        <TextBlock DockPanel.Dock="Top" x:Name="txtProgress" Foreground="#9FB5D0" FontSize="13" Margin="0,0,0,12"/>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="btnStop" Content="Stop" MinWidth="100" Padding="12,7" Margin="0,0,8,0"/>
+            <Button x:Name="btnNext" Content="Next Task" MinWidth="110" Padding="12,7" IsDefault="True"/>
+        </StackPanel>
+        <StackPanel>
+            <TextBlock FontSize="20" FontWeight="SemiBold" Text="Task &amp; User" Margin="0,0,0,12"/>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="Task ID" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="1" Text="Display Name" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="2" Text="SamAccount" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="3" Text="Employee ID" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="4" Text="Title" Margin="0,0,0,8"/>
+                <TextBlock x:Name="valTask" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold"/>
+                <TextBlock x:Name="valName" Grid.Column="1" Grid.Row="1"/>
+                <TextBlock x:Name="valSam" Grid.Column="1" Grid.Row="2"/>
+                <TextBlock x:Name="valEmployee" Grid.Column="1" Grid.Row="3"/>
+                <TextBlock x:Name="valTitle" Grid.Column="1" Grid.Row="4"/>
+            </Grid>
+            <Border BorderBrush="#455C79" BorderThickness="0,1,0,0" Margin="0,14,0,12"/>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="btnClinical" Content="Clinical Location Lookup" MinWidth="220" Padding="12,9" Margin="0,0,12,0"/>
+                <Button x:Name="btnProvider" Content="Provider Location Lookup" MinWidth="220" Padding="12,9"/>
+            </StackPanel>
+            <TextBlock x:Name="txtClinical" TextWrapping="Wrap" Margin="0,12,0,5"/>
+            <TextBlock x:Name="txtProvider" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <TextBlock Text="Select either lookup to change its assignment. Next Task preserves your choices." Foreground="#9FB5D0" TextWrapping="Wrap" Margin="0,12,0,0"/>
+        </StackPanel>
+    </DockPanel>
+</Window>
+'@
+    $dlg = ConvertFrom-WpfXaml $xaml
+    $dlg.Owner = $window
+    $dlg.Topmost = $true
+    $dlg.Title = 'Add Locations - Task {0}' -f $Task.TaskID
+    $dlg.FindName('txtProgress').Text = 'Task {0} of {1}' -f $Index,$Total
+    $dlg.FindName('valTask').Text = [string]$Task.TaskID
+    $dlg.FindName('valName').Text = [string]$user.DisplayName
+    $dlg.FindName('valSam').Text = [string]$user.SamAccountName
+    $dlg.FindName('valEmployee').Text = [string]$user.EmployeeID
+    $dlg.FindName('valTitle').Text = [string]$user.Title
+    $clinicalText = $dlg.FindName('txtClinical')
+    $providerText = $dlg.FindName('txtProvider')
+    $clinicalText.Text = 'Clinical: ' + $(if ($Task.ClinicalLocationDisplay) { $Task.ClinicalLocationDisplay } else { '(not selected)' })
+    $providerText.Text = 'Provider: ' + $(if ($Task.ProviderLocationDisplay) { $Task.ProviderLocationDisplay } else { '(not selected)' })
+    $dlg.FindName('btnClinical').Add_Click({
+        $selected = Show-LocationPicker -Title ('Clinical Location - Task {0}' -f $Task.TaskID) -Task $Task -DialogOwner $dlg
+        if ($null -ne $selected) {
+            Set-TaskClinicalLocation -Task $Task -Location $selected
+            $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
+        }
+    })
+    $dlg.FindName('btnProvider').Add_Click({
+        $selected = Show-LocationPicker -Title ('Provider Location - Task {0}' -f $Task.TaskID) -Task $Task -DialogOwner $dlg
+        if ($null -ne $selected) {
+            Set-TaskProviderLocation -Task $Task -Location $selected
+            $providerText.Text = 'Provider: ' + $Task.ProviderLocationDisplay
+        }
+    })
+    $dlg.FindName('btnNext').Add_Click({ $dlg.DialogResult = $true })
+    $dlg.FindName('btnStop').Add_Click({ $dlg.DialogResult = $false })
+    return ($dlg.ShowDialog() -eq $true)
 }
 
 function Show-NotImplemented {
@@ -636,7 +745,7 @@ $btnAddUsers.Add_Click({
             }
         }
         # Snapshot permits safe iteration even if tasks are changed later.
-        foreach ($task in @($script:Tasks)) {
+        foreach ($task in @($script:Tasks | Where-Object { $null -eq (Get-TaskUser -Task $_) })) {
             $message = 'Task {0}: enter a user identifier (SamAccountName, EmployeeID, email, name, etc.). Cancel stops the loop. Leave empty to skip.' -f $task.TaskID
             $entered = Show-TextPrompt -Title ('AD User for Task {0}' -f $task.TaskID) -Message $message -DefaultValue $task.EmolstUserName
             if ($null -eq $entered) { Write-Activity 'Add Users cancelled by operator.'; break }
@@ -645,6 +754,7 @@ $btnAddUsers.Add_Click({
             Add-AdUserForTask -Task $task -SearchTerm $entered
         }
         Update-Counters
+        Update-WorkflowButtons
     }
     catch { Write-Activity ('Add Users error: {0}' -f $_.Exception.Message) }
 })
@@ -675,26 +785,33 @@ $btnRefreshLocations.Add_Click({
     }
     finally { $btnRefreshLocations.IsEnabled = $true }
 })
-$btnAddClinLoc.Add_Click({
-    if ($script:Locations.Count -eq 0) {
-        [System.Windows.MessageBox]::Show($window,'No clinical locations are loaded. Verify the local JSON or click Update Locations.','No Locations','OK','Warning') | Out-Null
-        return
+$btnAddLocations.Add_Click({
+    try {
+        Update-WorkflowButtons
+        if (-not $btnAddLocations.IsEnabled) {
+            [System.Windows.MessageBox]::Show($window,'First add tasks and assign an Active Directory user to every task.','Complete Add Users First','OK','Information') | Out-Null
+            return
+        }
+        if ($script:Locations.Count -eq 0) {
+            [System.Windows.MessageBox]::Show($window,'No locations loaded. Check local JSON or use Update Locations.','No Locations','OK','Warning') | Out-Null
+            return
+        }
+        $index = 0
+        foreach ($task in @($script:Tasks)) {
+            $index++
+            if (-not (Show-TaskLocationDialog -Task $task -Index $index -Total $script:Tasks.Count)) {
+                Write-Activity ('Add Locations stopped at Task {0}.' -f $task.TaskID)
+                break
+            }
+        }
     }
-    if ($script:Tasks.Count -eq 0) {
-        [System.Windows.MessageBox]::Show($window,'Add tasks first.','No Tasks','OK','Information') | Out-Null
-        return
-    }
-    foreach ($task in @($script:Tasks)) {
-        $selected = Show-LocationPicker -Title ('Clinical Location for Task {0}' -f $task.TaskID) -Task $task
-        if ($null -eq $selected) { Write-Activity ('Add Clin Loc ended at task {0}.' -f $task.TaskID); break }
-        Set-TaskClinicalLocation -Task $task -Location $selected
+    catch {
+        Write-Activity ('Add Locations error: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'Location Workflow Error','OK','Error') | Out-Null
     }
 })
-$btnShowClinLoc.Add_Click({ Show-ClinicalLocationDetails -Task $gridTasks.SelectedItem })
-$btnShowProvLoc.Add_Click({ Show-NotImplemented -Feature 'Show Prov Loc' })
 
 foreach ($config in @(
-    @{ Control = $btnAddProfLoc; Name = 'Add Prof Loc' },
     @{ Control = $btnAddSSO; Name = 'Add SSO' },
     @{ Control = $btnLaunchIvanti; Name = 'Launch Ivanti' },
     @{ Control = $btnLaunchDrMaster; Name = 'Launch Dr Master' },
@@ -712,6 +829,7 @@ foreach ($config in @(
 
 $gridTasks.Add_SelectionChanged({ Update-TaskDetails })
 Update-Counters
+Update-WorkflowButtons
 Read-ClinicalLocations
-Write-Activity 'Ready. Add Tasks, Add Users and Add Clin Loc are available.'
+Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations.'
 [void]$window.ShowDialog()
