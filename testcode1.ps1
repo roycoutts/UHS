@@ -1330,10 +1330,68 @@ $btnAddSSO.Add_Click({
     }
 })
 
+# Resolve the installed Chrome desktop executable, independent of browser defaults.
+function Get-ChromeExecutable {
+    $commands = @(Get-Command 'chrome.exe' -ErrorAction SilentlyContinue)
+    foreach ($command in $commands) {
+        if ($command.Source -and (Test-Path -LiteralPath $command.Source -PathType Leaf)) {
+            return $command.Source
+        }
+    }
+
+    foreach ($regPath in @(
+        'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe',
+        'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe',
+        'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
+    )) {
+        try {
+            $key = Get-Item -LiteralPath $regPath -ErrorAction Stop
+            $exe = [string]$key.GetValue('')
+            if ($exe -and (Test-Path -LiteralPath $exe -PathType Leaf)) { return $exe }
+        }
+        catch { }
+    }
+
+    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)) {
+        if ([string]::IsNullOrWhiteSpace($base)) { continue }
+        $candidate = Join-Path $base 'Google\Chrome\Application\chrome.exe'
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    return $null
+}
+
+function Start-ChromeWebsite {
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Url
+    )
+    try {
+        $chrome = Get-ChromeExecutable
+        if (-not $chrome) {
+            throw 'Google Chrome is not installed or chrome.exe could not be located on this PC.'
+        }
+        Start-Process -FilePath $chrome -ArgumentList @($Url) -ErrorAction Stop
+        Write-Activity ('{0}: opened in Chrome: {1}' -f $Name, $Url)
+    }
+    catch {
+        Write-Activity ('{0}: launch failed: {1}' -f $Name, $_.Exception.Message)
+        [System.Windows.MessageBox]::Show(
+            $window, $_.Exception.Message, ('Unable to launch {0}' -f $Name), 'OK', 'Error'
+        ) | Out-Null
+    }
+}
+
+$btnLaunchIvanti.Add_Click({
+    Start-ChromeWebsite -Name 'Ivanti' -Url 'https://uhs-amc.ivanticloud.com'
+})
+$btnLaunchDrMaster.Add_Click({
+    Start-ChromeWebsite -Name 'Dr Master' -Url 'http://apps.uhs.org/DoctorMaster/DoctorsInternal.aspx'
+})
+$btnLaunchEMOLST.Add_Click({
+    Start-ChromeWebsite -Name 'EMOLST' -Url 'https://www.nysemolstregistry.com/backend/LogIn.aspx?RedirectUrl=%2fbackend%2fPages%2fUsers.aspx'
+})
+
 foreach ($config in @(
-    @{ Control = $btnLaunchIvanti; Name = 'Launch Ivanti' },
-    @{ Control = $btnLaunchDrMaster; Name = 'Launch Dr Master' },
-    @{ Control = $btnLaunchEMOLST; Name = 'Launch EMOLST' },
     @{ Control = $btnLoadIvantiSummary; Name = 'Load Ivanti Summary' }
 )) {
     $feature = [string]$config.Name
