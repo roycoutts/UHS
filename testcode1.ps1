@@ -1453,7 +1453,7 @@ function Test-EmolstReviewRows {
         foreach ($field in $commonRequired) {
             if ([string]::IsNullOrWhiteSpace([string]$row.$field)) { $errors.Add($field + ' missing') }
         }
-        if ($row.Type -notin @('Clinical','Provider')) { $errors.Add('Type must be Clinical or Provider') }
+        if ($row.Type -notin @('Admin','Clinical','Provider')) { $errors.Add('Type must be Admin, Clinical, or Provider') }
         if ($row.'Admin Role' -notin $adminRoles) { $errors.Add('Unrecognized Admin Role') }
         if ($row.'Clinical Role' -notin $clinicalRoles) { $errors.Add('Unrecognized Clinical Role') }
         if ([string]$row.'SSO Username' -cnotmatch '^[0-9]{1,8}$') { $errors.Add('SSO must contain 1-8 digits') }
@@ -1526,7 +1526,18 @@ function Show-EmolstDataReview {
                   Background="#172339" Foreground="#E6EDF7" RowBackground="#172339"
                   AlternatingRowBackground="#20314A" BorderBrush="#3B526D"
                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"/>
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#DCE6F2"/>
+                    <Setter Property="Foreground" Value="#14243A"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Padding" Value="9,8"/>
+                    <Setter Property="BorderBrush" Value="#AABACD"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+        </DataGrid>
     </DockPanel>
 </Window>
 '@
@@ -1536,12 +1547,26 @@ function Show-EmolstDataReview {
     $grid.ItemsSource = $rows
     $fields = @('Task ID','Type','Username','Admin Role','Clinical Role','Title','Prefix','First Name','Middle Name','Last Name','Suffix','Street','City','State','Zip','Phone Number','Email Address','Provider NPI','Provider State License','SSO Username','Identity Provider','Validation')
     foreach ($field in $fields) {
-        if ($field -eq 'Type') {
+        $choices = switch ($field) {
+            'Type' { @('Admin','Clinical','Provider') }
+            'Admin Role' { @('QA/QI','HIPAA Entity Admin','HIPAA Entity Auditor','No Admin Access') }
+            'Clinical Role' { @('Form Access, Non-Signer','Read but no write access to Forms','MD/DO Form Signer','No Patient Access','NP Form Signer','PA Form Signer') }
+            default { $null }
+        }
+        if ($null -ne $choices) {
             $column = [System.Windows.Controls.DataGridComboBoxColumn]::new()
-            $column.Header = 'Type'
-            $column.ItemsSource = @('Clinical','Provider')
-            $column.SelectedItemBinding = [System.Windows.Data.Binding]::new('[Type]')
-            $column.Width = [System.Windows.Controls.DataGridLength]::new(115)
+            $column.Header = $field
+            $column.ItemsSource = [string[]]$choices
+            $binding = [System.Windows.Data.Binding]::new('[' + $field + ']')
+            $binding.Mode = [System.Windows.Data.BindingMode]::TwoWay
+            $binding.UpdateSourceTrigger = [System.Windows.Data.UpdateSourceTrigger]::PropertyChanged
+            $column.SelectedItemBinding = $binding
+            $column.Width = [System.Windows.Controls.DataGridLength]::new($(if ($field -eq 'Type') { 125 } elseif ($field -eq 'Admin Role') { 190 } else { 245 }))
+            # ComboBox options remain readable when the row background is dark.
+            $viewStyle = [System.Windows.Style]::new([System.Windows.Controls.ComboBox])
+            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control.ForegroundProperty], [System.Windows.Media.Brushes]::Black))
+            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control.BackgroundProperty], [System.Windows.Media.Brushes]::White))
+            $column.EditingElementStyle = $viewStyle
         } else {
             $column = [System.Windows.Controls.DataGridTextColumn]::new()
             $column.Header = $field
@@ -1563,7 +1588,7 @@ function Show-EmolstDataReview {
         $row = $eventArgs.Row.Item
         $combo = $eventArgs.EditingElement
         $newType = [string]$combo.SelectedItem
-        if ($newType -notin @('Clinical','Provider') -or $newType -eq $row.Type) { return }
+        if ($newType -notin @('Admin','Clinical','Provider') -or $newType -eq $row.Type) { return }
         $task = @($script:Tasks | Where-Object { $_.TaskID -eq $row.'Task ID' } | Select-Object -First 1)[0]
         if ($newType -eq 'Clinical' -and -not $task.ClinicalLocationName) {
             [System.Windows.MessageBox]::Show($dlg,'No Clinical Location is assigned to this task.','Type unavailable','OK','Warning') | Out-Null
@@ -1573,8 +1598,13 @@ function Show-EmolstDataReview {
             [System.Windows.MessageBox]::Show($dlg,'No DoctorMaster provider is assigned to this task.','Type unavailable','OK','Warning') | Out-Null
             $eventArgs.Cancel = $true; return
         }
+        # Admin uses AD identity rather than DoctorMaster provider identity.
+        # Where a clinical location exists, use it as the address source.
+        # Otherwise preserve the manually editable address values for review.
         $fresh = New-EmolstReviewRow -Task $task -Type $newType
         foreach ($property in @('Title','First Name','Middle Name','Last Name','Suffix','Street','City','State','Zip','Phone Number','Provider NPI','Provider State License','Clinical Role')) {
+            if ($newType -eq 'Admin' -and -not $task.ClinicalLocationName -and
+                $property -in @('Street','City','State','Zip','Phone Number')) { continue }
             $row.$property = $fresh.$property
         }
         # Cell commit updates Type through the binding after this event.
