@@ -107,9 +107,6 @@ Add-Type -AssemblyName System.Xaml
                 <Button x:Name="btnLaunchIvanti" Content="Launch Ivanti"/>
                 <Button x:Name="btnLaunchDrMaster" Content="Launch Dr Master"/>
                 <Button x:Name="btnLaunchEMOLST" Content="Launch EMOLST"/>
-                <Button x:Name="btnLoadEPICUser" Content="Load EPIC User"/>
-                <Button x:Name="btnLoadEMOLSTUser" Content="Load EMOLST User"/>
-                <Button x:Name="btnLoadDrMasterUser" Content="Load Dr Master User"/>
                 <Button x:Name="btnLoadIvantiSummary" Content="Load Ivanti Summary"/>
             </WrapPanel>
             <Border Grid.Row="1" Background="#192A40" CornerRadius="4" Padding="8" Margin="0,2,0,9">
@@ -151,6 +148,7 @@ Add-Type -AssemblyName System.Xaml
                             <DataGridTextColumn Header="Task Note" Binding="{Binding TaskNote}" Width="*"/>
                             <DataGridTextColumn Header="Clinical Location" Binding="{Binding ClinicalLocationDisplay}" Width="170"/>
                             <DataGridTextColumn Header="Provider Location" Binding="{Binding ProviderLocationDisplay}" Width="170"/>
+                            <DataGridTextColumn Header="SSO" Binding="{Binding EmolstSSOUsername}" Width="95"/>
                             <DataGridTextColumn Header="EMOLST User" Binding="{Binding EmolstUserName}" Width="140"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -204,7 +202,7 @@ $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
     'btnAddTasks','btnAddUsers','btnAddLocations','btnAddSSO',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
-    'btnLoadEPICUser','btnLoadEMOLSTUser','btnLoadDrMasterUser','btnLoadIvantiSummary',
+    'btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
     'btnEditAliases','btnRefreshLocations',
     'gridTasks','gridUsers','gridTaskProperties'
@@ -550,6 +548,7 @@ function Set-TaskClinicalLocation {
     $gridTasks.Items.Refresh()
     Update-TaskDetails
     Write-Activity ('Task {0}: clinical location set to {1}.' -f $Task.TaskID,$Task.ClinicalLocationDisplay)
+    Update-WorkflowButtons
 }
 function Show-ClinicalLocationDetails {
     param($Task)
@@ -650,21 +649,35 @@ function Get-TaskUser {
 function Update-WorkflowButtons {
     $hasTasks = ($script:Tasks.Count -gt 0)
     $btnAddUsers.IsEnabled = $hasTasks
-    $complete = $hasTasks
-    if ($complete) {
+    $usersComplete = $hasTasks
+    if ($usersComplete) {
         foreach ($task in $script:Tasks) {
-            if ($null -eq (Get-TaskUser -Task $task)) { $complete = $false; break }
+            if ($null -eq (Get-TaskUser -Task $task)) { $usersComplete = $false; break }
         }
     }
-    $btnAddLocations.IsEnabled = $complete
-    # Clinical Locations maintenance is independent of Add Tasks/Add Users.
-    # The click handlers handle missing location data or updater files.
+    $btnAddLocations.IsEnabled = $usersComplete
+    # Maintain clinical locations independently of tasks and AD users.
     $btnEditAliases.IsEnabled = $true
     $btnRefreshLocations.IsEnabled = $true
-    # Steps following Add Users cannot run until each task has an assigned AD user.
-    foreach ($button in @($btnAddSSO,$btnLaunchIvanti,$btnLaunchDrMaster,$btnLaunchEMOLST,
-                           $btnLoadEPICUser,$btnLoadEMOLSTUser,$btnLoadDrMasterUser,$btnLoadIvantiSummary)) {
-        $button.IsEnabled = $complete
+
+    # SSO is the next step after assigning both clinical and provider locations
+    # for every task. A missing assignment leaves Add SSO disabled.
+    $locationsComplete = $usersComplete
+    if ($locationsComplete) {
+        foreach ($task in $script:Tasks) {
+            if ([string]::IsNullOrWhiteSpace([string]$task.ClinicalLocationName) -or
+                [string]::IsNullOrWhiteSpace([string]$task.ProviderNumber)) {
+                $locationsComplete = $false
+                break
+            }
+        }
+    }
+    $btnAddSSO.IsEnabled = $locationsComplete
+
+    # Existing application placeholders retain their previous user-assignment gate.
+    foreach ($button in @($btnLaunchIvanti,$btnLaunchDrMaster,$btnLaunchEMOLST,
+                           $btnLoadIvantiSummary)) {
+        $button.IsEnabled = $usersComplete
     }
 }
 
@@ -1006,6 +1019,7 @@ function Set-TaskProviderLocation {
     $gridTasks.Items.Refresh()
     Update-TaskDetails
     Write-Activity ('Task {0}: DoctorMaster provider {1}; NPI {2}; Source {3}.' -f $Task.TaskID,$Task.ProviderLocationDisplay,$Task.ProviderNPI,(Split-Path -Leaf $script:DoctorMasterPath))
+    Update-WorkflowButtons
 }
 
 function Invoke-DoctorMasterLookup {
@@ -1118,6 +1132,67 @@ function Show-TaskLocationDialog {
     return ($dlg.ShowDialog() -eq $true)
 }
 
+function Show-TaskSSODialog {
+    param($Task,[int]$Index,[int]$Total)
+    $user = Get-TaskUser -Task $Task
+    [xml]$xaml = @'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add SSO" Width="540" Height="365" MinWidth="460" MinHeight="340"
+        Background="#152237" Foreground="#E6EDF7" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip">
+    <DockPanel Margin="18">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="btnCancel" Content="Cancel / Stop" MinWidth="115" Margin="0,0,8,0" Padding="10,7"/>
+            <Button x:Name="btnSkip" Content="Skip Task" MinWidth="100" Margin="0,0,8,0" Padding="10,7"/>
+            <Button x:Name="btnSave" Content="Save / Next" IsDefault="True" MinWidth="110" Padding="10,7"/>
+        </StackPanel>
+        <StackPanel>
+            <TextBlock x:Name="txtProgress" Foreground="#A9BCD4" FontSize="12" Margin="0,0,0,12"/>
+            <TextBlock x:Name="txtTask" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,7"/>
+            <TextBlock x:Name="txtUser" TextWrapping="Wrap" Margin="0,0,0,4"/>
+            <TextBlock x:Name="txtSam" Foreground="#B9CDE4" Margin="0,0,0,13"/>
+            <TextBlock Text="SSO number (1 to 8 digits)" FontWeight="SemiBold"/>
+            <TextBox x:Name="txtSSO" MaxLength="8" Margin="0,6,0,5" Padding="8,7"
+                     FontSize="17" Background="#F5F8FD" Foreground="#172437"/>
+            <TextBlock Text="Digits only. Leading zeros are preserved. Skip keeps the current value."
+                       Foreground="#A9BCD4" TextWrapping="Wrap" Margin="0,3,0,0"/>
+            <TextBlock x:Name="txtError" Foreground="#FF9F9F" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        </StackPanel>
+    </DockPanel>
+</Window>
+'@
+    $dlg = ConvertFrom-WpfXaml $xaml
+    $dlg.Owner = $window
+    $dlg.Topmost = $true
+    $dlg.FindName('txtProgress').Text = 'Task {0} of {1}' -f $Index,$Total
+    $dlg.FindName('txtTask').Text = 'Task ID: ' + [string]$Task.TaskID
+    $dlg.FindName('txtUser').Text = 'User: ' + [string]$user.DisplayName
+    $dlg.FindName('txtSam').Text = 'SamAccount: ' + [string]$user.SamAccountName
+    $entry = $dlg.FindName('txtSSO')
+    $entry.Text = [string]$Task.EmolstSSOUsername
+    $errorLabel = $dlg.FindName('txtError')
+    # Validate the final text, including pasted values, before saving.
+    $dlg.FindName('btnSave').Add_Click({
+        $candidate = $entry.Text.Trim()
+        if ($candidate -cnotmatch '^[0-9]{1,8}$') {
+            $errorLabel.Text = 'Enter 1 to 8 digits (0-9), with no spaces or other characters.'
+            $entry.Focus() | Out-Null
+            return
+        }
+        $dlg.Tag = [pscustomobject]@{ Action = 'Save'; Value = $candidate }
+        $dlg.DialogResult = $true
+    })
+    $dlg.FindName('btnSkip').Add_Click({
+        $dlg.Tag = [pscustomobject]@{ Action = 'Skip'; Value = '' }
+        $dlg.DialogResult = $true
+    })
+    $dlg.FindName('btnCancel').Add_Click({ $dlg.DialogResult = $false })
+    $dlg.Add_ContentRendered({ $entry.Focus(); $entry.SelectAll() })
+    if ($dlg.ShowDialog() -eq $true) { return $dlg.Tag }
+    return [pscustomobject]@{ Action = 'Stop'; Value = '' }
+}
+
 function Show-NotImplemented {
     param([string]$Feature)
     Write-Activity ('{0}: integration details are not configured yet.' -f $Feature)
@@ -1215,14 +1290,44 @@ $btnAddLocations.Add_Click({
     }
 })
 
+$btnAddSSO.Add_Click({
+    try {
+        Update-WorkflowButtons
+        if (-not $btnAddSSO.IsEnabled) {
+            [System.Windows.MessageBox]::Show($window,
+                'Complete Add Tasks, Add Users, and both Clinical and Provider location assignments for every task before adding SSO.',
+                'Complete Locations First','OK','Information') | Out-Null
+            return
+        }
+        $index = 0
+        foreach ($task in @($script:Tasks)) {
+            $index++
+            $result = Show-TaskSSODialog -Task $task -Index $index -Total $script:Tasks.Count
+            if ($result.Action -eq 'Stop') {
+                Write-Activity ('Add SSO stopped at task {0}.' -f $task.TaskID)
+                break
+            }
+            if ($result.Action -eq 'Skip') {
+                Write-Activity ('Add SSO skipped task {0}; existing SSO unchanged.' -f $task.TaskID)
+                continue
+            }
+            $task.EmolstSSOUsername = [string]$result.Value
+            $gridTasks.Items.Refresh()
+            Update-TaskDetails
+            Write-Activity ('Task {0}: SSO number saved.' -f $task.TaskID)
+        }
+        Update-WorkflowButtons
+    }
+    catch {
+        Write-Activity ('Add SSO error: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'SSO Workflow Error','OK','Error') | Out-Null
+    }
+})
+
 foreach ($config in @(
-    @{ Control = $btnAddSSO; Name = 'Add SSO' },
     @{ Control = $btnLaunchIvanti; Name = 'Launch Ivanti' },
     @{ Control = $btnLaunchDrMaster; Name = 'Launch Dr Master' },
     @{ Control = $btnLaunchEMOLST; Name = 'Launch EMOLST' },
-    @{ Control = $btnLoadEPICUser; Name = 'Load EPIC User' },
-    @{ Control = $btnLoadEMOLSTUser; Name = 'Load EMOLST User' },
-    @{ Control = $btnLoadDrMasterUser; Name = 'Load Dr Master User' },
     @{ Control = $btnLoadIvantiSummary; Name = 'Load Ivanti Summary' }
 )) {
     $feature = [string]$config.Name
@@ -1235,5 +1340,5 @@ $gridTasks.Add_SelectionChanged({ Update-TaskDetails })
 Update-Counters
 Update-WorkflowButtons
 Read-ClinicalLocations
-Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations.'
+Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations -> Add SSO.'
 [void]$window.ShowDialog()
