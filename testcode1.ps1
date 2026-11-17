@@ -660,19 +660,25 @@ function Update-WorkflowButtons {
     $btnEditAliases.IsEnabled = $true
     $btnRefreshLocations.IsEnabled = $true
 
-    # SSO is the next step after assigning both clinical and provider locations
-    # for every task. A missing assignment leaves Add SSO disabled.
+    # A task may require a clinical location OR a DoctorMaster provider record.
+    # SSO unlocks once each task has an AD user and at least one location assignment.
     $locationsComplete = $usersComplete
     if ($locationsComplete) {
         foreach ($task in $script:Tasks) {
-            if ([string]::IsNullOrWhiteSpace([string]$task.ClinicalLocationName) -or
-                [string]::IsNullOrWhiteSpace([string]$task.ProviderNumber)) {
+            $hasClinical = -not [string]::IsNullOrWhiteSpace([string]$task.ClinicalLocationName)
+            $hasProvider = -not [string]::IsNullOrWhiteSpace([string]$task.ProviderNumber)
+            if (-not ($hasClinical -or $hasProvider)) {
                 $locationsComplete = $false
                 break
             }
         }
     }
     $btnAddSSO.IsEnabled = $locationsComplete
+    $btnAddSSO.ToolTip = if ($locationsComplete) {
+        'Enter a 1-8 digit SSO identifier for each task.'
+    } else {
+        'First assign an AD user and at least one Clinical OR Provider location to every task.'
+    }
 
     # Existing application placeholders retain their previous user-assignment gate.
     foreach ($button in @($btnLaunchIvanti,$btnLaunchDrMaster,$btnLaunchEMOLST,
@@ -1295,7 +1301,7 @@ $btnAddSSO.Add_Click({
         Update-WorkflowButtons
         if (-not $btnAddSSO.IsEnabled) {
             [System.Windows.MessageBox]::Show($window,
-                'Complete Add Tasks, Add Users, and both Clinical and Provider location assignments for every task before adding SSO.',
+                'Complete Add Tasks, Add Users, and at least one Clinical OR Provider location assignment for every task before adding SSO.',
                 'Complete Locations First','OK','Information') | Out-Null
             return
         }
