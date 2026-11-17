@@ -1,229 +1,3 @@
-$path = "$env:LOCALAPPDATA\Get-UHSLocations\Local-UHS-Locations.json"
-
-$backup = "$path.bak"
-
-Get-Content -LiteralPath $backup -Raw |
-    ConvertFrom-Json |
-    Select-Object -ExpandProperty Location
-
-    ===========================
-
-(Get-Content -LiteralPath $backup -Raw |
-    ConvertFrom-Json).SyncRoot |
-    Where-Object { $_.Location } |
-    Select-Object Name, Location
-
-    ==========================
-
-#requires -Version 5.1
-<#
-.SYNOPSIS
- Refresh UHS facility listings without losing manually assigned Location aliases.
-.DESCRIPTION
- Reads existing local and (optionally) master JSON, scrapes the published UHS
- location listing, merges aliases by facility identity, and writes JSON safely.
- A failed or empty scrape never overwrites an existing file.
-#>
-[CmdletBinding()]
-param(
-    [string]$LocalPath = (Join-Path $env:LOCALAPPDATA 'Get-UHSLocations\Local-UHS-Locations.json'),
-    [string]$MasterPath = '\\radcalcqa3\ITShare\SCRIPTS\Get-UHSLocations\Master-UHS-Locations.json',
-    [switch]$SkipMaster
-)
-$ErrorActionPreference = 'Stop'
-
-function Expand-UhsLocationRecords {
-    param($Data)
-    # Older UHS exports serialized a Generic.List as a wrapper with SyncRoot.
-    # Arrays also expose a SyncRoot .NET property, so check for arrays FIRST.
-    if ($null -eq $Data) { return }
-    if ($Data -is [array]) {
-        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
-        return
-    }
-    if ($Data -is [System.Collections.IDictionary]) {
-        if ($Data.Contains('Name')) { Write-Output ([pscustomobject]$Data); return }
-        if ($Data.Contains('SyncRoot')) { Expand-UhsLocationRecords -Data $Data['SyncRoot']; return }
-    }
-    $properties = $Data.PSObject.Properties
-    if ($null -ne $properties['Name'] -and -not [string]::IsNullOrWhiteSpace([string]$Data.Name)) {
-        Write-Output $Data
-        return
-    }
-    if ($null -ne $properties['SyncRoot']) {
-        Expand-UhsLocationRecords -Data $Data.SyncRoot
-        return
-    }
-    if ($Data -is [System.Collections.IEnumerable] -and $Data -isnot [string]) {
-        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
-    }
-}
-
-function Read-LocationJson([string]$Path) {
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @() }
-    $raw = [System.IO.File]::ReadAllText($Path)
-    if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
-    $data = ConvertFrom-Json -InputObject $raw -ErrorAction Stop
-    return @(Expand-UhsLocationRecords -Data $data | Where-Object { $null -ne $_ -and $_.Name -isnot [array] -and -not [string]::IsNullOrWhiteSpace([string]$_.Name) })
-}
-function Key([string]$Text) {
-    return (([string]$Text).Trim() -replace '\s+',' ').ToUpperInvariant()
-}
-function Merge-LocationData([object[]]$Fresh, [object[]]$Existing) {
-    # Match aliases by normalized facility name/address, then by unique name,
-    # then by unique street/city. Never silently discard a previously saved alias.
-    $oldAliases = @($Existing | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Location) })
-    $output = [System.Collections.Generic.List[object]]::new()
-    $matchedOld = [System.Collections.Generic.HashSet[int]]::new()
-    for ($fi = 0; $fi -lt $Fresh.Count; $fi++) {
-        $r = $Fresh[$fi]
-        $candidates = @()
-        for ($oi = 0; $oi -lt $oldAliases.Count; $oi++) {
-            $old = $oldAliases[$oi]
-            $sameName = (Key $r.Name) -eq (Key $old.Name)
-            $sameStreet = -not [string]::IsNullOrWhiteSpace([string]$r.Address1) -and
-                (Key $r.Address1) -eq (Key $old.Address1)
-            $sameCity = (Key $r.Locality) -eq (Key $old.Locality)
-            $rank = 0
-            if ($sameName -and $sameStreet -and $sameCity) { $rank = 3 }
-            elseif ($sameName) { $rank = 2 }
-            elseif ($sameStreet -and $sameCity) { $rank = 1 }
-            if ($rank -gt 0) { $candidates += [pscustomobject]@{ Index=$oi; Rank=$rank } }
-        }
-        $alias = [string]$r.Location
-        if ($candidates.Count -gt 0) {
-            $bestRank = ($candidates | Measure-Object -Property Rank -Maximum).Maximum
-            $best = @($candidates | Where-Object { $_.Rank -eq $bestRank })
-            if ($best.Count -eq 1) {
-                $alias = [string]$oldAliases[$best[0].Index].Location
-                $null = $matchedOld.Add([int]$best[0].Index)
-            }
-        }
-        $output.Add([pscustomobject][ordered]@{
-            Name=[string]$r.Name; Location=$alias; Phone=[string]$r.Phone
-            Address1=[string]$r.Address1; Address2=[string]$r.Address2
-            Locality=[string]$r.Locality; State=[string]$r.State; Zip=[string]$r.Zip
-        })
-    }
-    # If a previously aliased facility was removed/renamed or became ambiguous,
-    # retain its old record; don't sacrifice user-entered metadata to a web scrape.
-    for ($oi = 0; $oi -lt $oldAliases.Count; $oi++) {
-        if (-not $matchedOld.Contains($oi)) {
-            $old = $oldAliases[$oi]
-            $alreadyPresent = @($output | Where-Object {
-                (Key $_.Name) -eq (Key $old.Name) -and
-                (Key $_.Address1) -eq (Key $old.Address1) -and
-                (Key $_.Locality) -eq (Key $old.Locality) -and
-                (Key $_.Location) -eq (Key $old.Location)
-            }).Count -gt 0
-            if (-not $alreadyPresent) {
-                Write-Warning ('Keeping unmatched aliased facility: {0} [{1}]' -f $old.Name,$old.Location)
-                $output.Add([pscustomobject][ordered]@{
-                    Name=[string]$old.Name; Location=[string]$old.Location
-                    Phone=[string]$old.Phone; Address1=[string]$old.Address1
-                    Address2=[string]$old.Address2; Locality=[string]$old.Locality
-                    State=[string]$old.State; Zip=[string]$old.Zip
-                })
-            }
-        }
-    }
-    return $output.ToArray()
-}
-function Assert-AliasesPreserved([object[]]$Before,[object[]]$After) {
-    foreach ($old in @($Before | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Location) })) {
-        $found = @($After | Where-Object {
-            (Key $_.Location) -eq (Key $old.Location) -and (
-                ((Key $_.Name) -eq (Key $old.Name)) -or
-                ((Key $_.Address1) -eq (Key $old.Address1) -and
-                 (Key $_.Locality) -eq (Key $old.Locality))
-            )
-        }).Count -gt 0
-        if (-not $found) { throw ('REFUSING TO OVERWRITE: location alias {0} for {1} would be lost.' -f $old.Location,$old.Name) }
-    }
-}
-function Save-LocationJson([string]$Path,[object[]]$Records) {
-    $folder = Split-Path -Parent $Path
-    if (-not (Test-Path -LiteralPath $folder)) { $null = New-Item -ItemType Directory -Path $folder -Force }
-    $temp = Join-Path $folder ('.locations-{0}.tmp' -f [guid]::NewGuid().ToString('N'))
-    try {
-        $rows = @($Records | ForEach-Object { $_ })
-        $json = ConvertTo-Json -InputObject $rows -Depth 8
-        [System.IO.File]::WriteAllText($temp,$json,[System.Text.UTF8Encoding]::new($true))
-        if (Test-Path -LiteralPath $Path) {
-            Copy-Item -LiteralPath $Path -Destination ($Path + '.bak') -Force -ErrorAction Stop
-        }
-        Move-Item -LiteralPath $temp -Destination $Path -Force -ErrorAction Stop
-    }
-    finally { if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
-}
-
-$localExisting = @(Read-LocationJson $LocalPath)
-$masterExisting = @()
-if (-not $SkipMaster -and (Test-Path -LiteralPath $MasterPath)) {
-    try { $masterExisting = @(Read-LocationJson $MasterPath) }
-    catch { Write-Warning ('Could not read master file: {0}' -f $_.Exception.Message) }
-}
-$results = [System.Collections.Generic.List[object]]::new()
-$baseUrl = 'https://www.nyuhs.org/location-search?title=&field_services=All&field_location_type=All&city=&page='
-$endConfirmed = $false
-for ($page=0; $page -lt 100; $page++) {
-    Write-Host ('Fetching locations page {0}...' -f $page) -ForegroundColor Cyan
-    try { $response = Invoke-WebRequest -Uri ($baseUrl + $page) -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop }
-    catch { throw ('Scrape failed on page {0}; existing JSON remains unchanged. {1}' -f $page,$_.Exception.Message) }
-    $html = [string]$response.Content
-    if ($html -match 'No matching results') { $endConfirmed = $true; break }
-    $blocks = [regex]::Matches($html,'(?s)<div[^>]*class="[^"]*media-block__body[^"]*"[^>]*>(.*?)<\/div>\s*<\/div>')
-    if ($blocks.Count -eq 0) {
-        if ($results.Count -gt 0) { $endConfirmed = $true; break }
-        throw 'No location cards were found. The website layout may have changed; existing files were not touched.'
-    }
-    foreach ($match in $blocks) {
-        $block = $match.Groups[1].Value
-        $values = @{}
-        foreach ($entry in @(
-            @('Name','media-block__title'),@('Phone','phone-link'),@('Address1','address-line1'),
-            @('Address2','address-line2'),@('Locality','locality'),@('State','administrative-area'),@('Zip','postal-code')
-        )) {
-            $m = [regex]::Match($block, '(?s)class="[^"]*' + [regex]::Escape($entry[1]) + '[^"]*"[^>]*>(.*?)<\/')
-            $values[$entry[0]] = if ($m.Success) {
-                [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($m.Groups[1].Value,'<[^>]*>','')).Trim())
-            } else { '' }
-        }
-        if (-not [string]::IsNullOrWhiteSpace($values.Name)) {
-            # Location is exclusively a user-maintained alias: never scrape a city into it.
-            $results.Add([pscustomobject]@{
-                Name=$values.Name; Location=''; Phone=$values.Phone; Address1=$values.Address1
-                Address2=$values.Address2; Locality=$values.Locality; State=$values.State; Zip=$values.Zip
-            })
-        }
-    }
-    Start-Sleep -Seconds 1
-}
-if (-not $endConfirmed -or $results.Count -eq 0) {
-    throw 'The scrape did not reach a safe ending or returned no facilities; no JSON was overwritten.'
-}
-# Always prefer local aliases; add master-only aliases as fallback where local is empty.
-$masterMerged = @(Merge-LocationData -Fresh $results.ToArray() -Existing $masterExisting)
-$localMerged = @(Merge-LocationData -Fresh $masterMerged -Existing $localExisting)
-Assert-AliasesPreserved -Before $localExisting -After $localMerged
-Save-LocationJson -Path $LocalPath -Records $localMerged
-Write-Host ('Updated LOCAL: {0} ({1} facilities)' -f $LocalPath,$localMerged.Count) -ForegroundColor Green
-if (-not $SkipMaster) {
-    try {
-        # Master aliases are preserved independently; local aliases are also promoted if master is blank.
-        $forMaster = @(Merge-LocationData -Fresh $localMerged -Existing $masterExisting)
-        Assert-AliasesPreserved -Before $masterExisting -After $forMaster
-        Save-LocationJson -Path $MasterPath -Records $forMaster
-        Write-Host ('Updated MASTER: {0}' -f $MasterPath) -ForegroundColor Green
-    }
-    catch { Write-Warning ('Local file updated; master write failed: {0}' -f $_.Exception.Message) }
-}
-
-
-
-======================================================
-
-
 #requires -Version 5.1
 <#
 .SYNOPSIS
@@ -720,6 +494,7 @@ function Read-ClinicalLocations {
             $script:Locations.Add([pscustomobject]@{
                 Name=[string]$r.Name; Location=[string]$r.Location; Phone=[string]$r.Phone
                 Address1=[string]$r.Address1; Address2=[string]$r.Address2
+                Address=(@([string]$r.Address1,[string]$r.Address2) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ", "
                 Locality=[string]$r.Locality; State=[string]$r.State; Zip=[string]$r.Zip
             })
         }
@@ -781,12 +556,12 @@ function Show-LocationPicker {
     [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="1020" Height="580" MinWidth="740" MinHeight="370"
+        Width="1150" Height="580" MinWidth="780" MinHeight="370"
         WindowStartupLocation="CenterOwner" Background="#152237" Foreground="White" ShowInTaskbar="False">
     <DockPanel Margin="12">
         <TextBlock x:Name="lblIntro" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"/>
         <TextBox x:Name="txtSearch" DockPanel.Dock="Top" Margin="0,0,0,9" Padding="8,6"
-                 Background="#F0F5FB" Foreground="#142337" ToolTip="Search name, alias, city, or address"/>
+                 Background="#F0F5FB" Foreground="#142337" ToolTip="Search name, alias, address, city, state or ZIP"/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button x:Name="btnAlias" Content="Edit Alias" Padding="10,7" Margin="0,0,7,0"/>
             <Button x:Name="btnCancel" Content="Cancel" Padding="10,7" Margin="0,0,7,0"/>
@@ -799,7 +574,8 @@ function Show-LocationPicker {
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Alias" Binding="{Binding Location}" Width="100"/>
                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="260"/>
-                <DataGridTextColumn Header="Address" Binding="{Binding Address1}" Width="220"/>
+                <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="260"/>
+                <DataGridTextColumn Header="ZIP" Binding="{Binding Zip}" Width="90"/>
                 <DataGridTextColumn Header="City" Binding="{Binding Locality}" Width="125"/>
                 <DataGridTextColumn Header="State" Binding="{Binding State}" Width="60"/>
                 <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="140"/>
@@ -1095,4 +871,224 @@ Update-WorkflowButtons
 Read-ClinicalLocations
 Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations.'
 [void]$window.ShowDialog()
+
+
+
+===================================================
+
+
+
+#requires -Version 5.1
+<#
+.SYNOPSIS
+ Refresh UHS facility listings without losing manually assigned Location aliases.
+.DESCRIPTION
+ Reads existing local and (optionally) master JSON, scrapes the published UHS
+ location listing, merges aliases by facility identity, and writes JSON safely.
+ A failed or empty scrape never overwrites an existing file.
+#>
+[CmdletBinding()]
+param(
+    [string]$LocalPath = (Join-Path $env:LOCALAPPDATA 'Get-UHSLocations\Local-UHS-Locations.json'),
+    [string]$MasterPath = '\\radcalcqa3\ITShare\SCRIPTS\Get-UHSLocations\Master-UHS-Locations.json',
+    [switch]$SkipMaster
+)
+$ErrorActionPreference = 'Stop'
+
+function Expand-UhsLocationRecords {
+    param($Data)
+    # Older UHS exports serialized a Generic.List as a wrapper with SyncRoot.
+    # Arrays also expose a SyncRoot .NET property, so check for arrays FIRST.
+    if ($null -eq $Data) { return }
+    if ($Data -is [array]) {
+        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
+        return
+    }
+    if ($Data -is [System.Collections.IDictionary]) {
+        if ($Data.Contains('Name')) { Write-Output ([pscustomobject]$Data); return }
+        if ($Data.Contains('SyncRoot')) { Expand-UhsLocationRecords -Data $Data['SyncRoot']; return }
+    }
+    $properties = $Data.PSObject.Properties
+    if ($null -ne $properties['Name'] -and -not [string]::IsNullOrWhiteSpace([string]$Data.Name)) {
+        Write-Output $Data
+        return
+    }
+    if ($null -ne $properties['SyncRoot']) {
+        Expand-UhsLocationRecords -Data $Data.SyncRoot
+        return
+    }
+    if ($Data -is [System.Collections.IEnumerable] -and $Data -isnot [string]) {
+        foreach ($record in $Data) { Expand-UhsLocationRecords -Data $record }
+    }
+}
+
+function Read-LocationJson([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @() }
+    $raw = [System.IO.File]::ReadAllText($Path)
+    if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
+    $data = ConvertFrom-Json -InputObject $raw -ErrorAction Stop
+    return @(Expand-UhsLocationRecords -Data $data | Where-Object { $null -ne $_ -and $_.Name -isnot [array] -and -not [string]::IsNullOrWhiteSpace([string]$_.Name) })
+}
+function Key([string]$Text) {
+    return (([string]$Text).Trim() -replace '\s+',' ').ToUpperInvariant()
+}
+function Merge-LocationData([object[]]$Fresh, [object[]]$Existing) {
+    # IMPORTANT: A street address may contain multiple independent departments.
+    # Never assign aliases by street/city alone. Use name identity, with address
+    # to disambiguate repeated names, and permit each old alias to match ONCE.
+    $oldAliases = @($Existing | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Location) })
+    $output = [System.Collections.Generic.List[object]]::new()
+    $matchedOld = [System.Collections.Generic.HashSet[int]]::new()
+    for ($fi = 0; $fi -lt $Fresh.Count; $fi++) {
+        $r = $Fresh[$fi]
+        $alias = [string]$r.Location
+        $sameName = @()
+        for ($oi = 0; $oi -lt $oldAliases.Count; $oi++) {
+            if ($matchedOld.Contains($oi)) { continue }
+            if ((Key $r.Name) -eq (Key $oldAliases[$oi].Name)) {
+                $sameName += $oi
+            }
+        }
+        $matchIndex = -1
+        if ($sameName.Count -eq 1) {
+            # Unique name is a sufficient match even when address changes.
+            $matchIndex = [int]$sameName[0]
+        }
+        elseif ($sameName.Count -gt 1) {
+            # Same facility name appears more than once: require unique exact
+            # address (including address2) and locality to disambiguate.
+            $sameAddress = @($sameName | Where-Object {
+                $old = $oldAliases[[int]$_]
+                (Key $r.Address1) -eq (Key $old.Address1) -and
+                (Key $r.Address2) -eq (Key $old.Address2) -and
+                (Key $r.Locality) -eq (Key $old.Locality)
+            })
+            if ($sameAddress.Count -eq 1) { $matchIndex = [int]$sameAddress[0] }
+        }
+        if ($matchIndex -ge 0) {
+            $alias = [string]$oldAliases[$matchIndex].Location
+            $null = $matchedOld.Add($matchIndex)
+        }
+        $output.Add([pscustomobject][ordered]@{
+            Name=[string]$r.Name; Location=$alias; Phone=[string]$r.Phone
+            Address1=[string]$r.Address1; Address2=[string]$r.Address2
+            Locality=[string]$r.Locality; State=[string]$r.State; Zip=[string]$r.Zip
+        })
+    }
+    # Preserve unmatched aliased records rather than silently destroying them;
+    # but avoid adding duplicate rows with an identical full facility identity.
+    for ($oi = 0; $oi -lt $oldAliases.Count; $oi++) {
+        if ($matchedOld.Contains($oi)) { continue }
+        $old = $oldAliases[$oi]
+        $alreadyPresent = @($output | Where-Object {
+            (Key $_.Name) -eq (Key $old.Name) -and
+            (Key $_.Address1) -eq (Key $old.Address1) -and
+            (Key $_.Address2) -eq (Key $old.Address2) -and
+            (Key $_.Locality) -eq (Key $old.Locality) -and
+            (Key $_.Location) -eq (Key $old.Location)
+        }).Count -gt 0
+        if (-not $alreadyPresent) {
+            Write-Warning ('Keeping unmatched aliased facility: {0} [{1}]' -f $old.Name,$old.Location)
+            $output.Add([pscustomobject][ordered]@{
+                Name=[string]$old.Name; Location=[string]$old.Location
+                Phone=[string]$old.Phone; Address1=[string]$old.Address1
+                Address2=[string]$old.Address2; Locality=[string]$old.Locality
+                State=[string]$old.State; Zip=[string]$old.Zip
+            })
+        }
+    }
+    return $output.ToArray()
+}
+function Assert-AliasesPreserved([object[]]$Before,[object[]]$After) {
+    foreach ($old in @($Before | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.Location) })) {
+        $found = @($After | Where-Object {
+            (Key $_.Location) -eq (Key $old.Location) -and
+            (Key $_.Name) -eq (Key $old.Name)
+        }).Count -gt 0
+        if (-not $found) { throw ('REFUSING TO OVERWRITE: alias {0} for {1} would be lost.' -f $old.Location,$old.Name) }
+    }
+}
+function Save-LocationJson([string]$Path,[object[]]$Records) {
+    $folder = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $folder)) { $null = New-Item -ItemType Directory -Path $folder -Force }
+    $temp = Join-Path $folder ('.locations-{0}.tmp' -f [guid]::NewGuid().ToString('N'))
+    try {
+        $rows = @($Records | ForEach-Object { $_ })
+        $json = ConvertTo-Json -InputObject $rows -Depth 8
+        [System.IO.File]::WriteAllText($temp,$json,[System.Text.UTF8Encoding]::new($true))
+        if (Test-Path -LiteralPath $Path) {
+            Copy-Item -LiteralPath $Path -Destination ($Path + '.bak') -Force -ErrorAction Stop
+        }
+        Move-Item -LiteralPath $temp -Destination $Path -Force -ErrorAction Stop
+    }
+    finally { if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
+}
+
+$localExisting = @(Read-LocationJson $LocalPath)
+$masterExisting = @()
+if (-not $SkipMaster -and (Test-Path -LiteralPath $MasterPath)) {
+    try { $masterExisting = @(Read-LocationJson $MasterPath) }
+    catch { Write-Warning ('Could not read master file: {0}' -f $_.Exception.Message) }
+}
+$results = [System.Collections.Generic.List[object]]::new()
+$baseUrl = 'https://www.nyuhs.org/location-search?title=&field_services=All&field_location_type=All&city=&page='
+$endConfirmed = $false
+for ($page=0; $page -lt 100; $page++) {
+    Write-Host ('Fetching locations page {0}...' -f $page) -ForegroundColor Cyan
+    try { $response = Invoke-WebRequest -Uri ($baseUrl + $page) -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop }
+    catch { throw ('Scrape failed on page {0}; existing JSON remains unchanged. {1}' -f $page,$_.Exception.Message) }
+    $html = [string]$response.Content
+    if ($html -match 'No matching results') { $endConfirmed = $true; break }
+    $blocks = [regex]::Matches($html,'(?s)<div[^>]*class="[^"]*media-block__body[^"]*"[^>]*>(.*?)<\/div>\s*<\/div>')
+    if ($blocks.Count -eq 0) {
+        if ($results.Count -gt 0) { $endConfirmed = $true; break }
+        throw 'No location cards were found. The website layout may have changed; existing files were not touched.'
+    }
+    foreach ($match in $blocks) {
+        $block = $match.Groups[1].Value
+        $values = @{}
+        foreach ($entry in @(
+            @('Name','media-block__title'),@('Phone','phone-link'),@('Address1','address-line1'),
+            @('Address2','address-line2'),@('Locality','locality'),@('State','administrative-area'),@('Zip','postal-code')
+        )) {
+            $m = [regex]::Match($block, '(?s)class="[^"]*' + [regex]::Escape($entry[1]) + '[^"]*"[^>]*>(.*?)<\/')
+            $values[$entry[0]] = if ($m.Success) {
+                [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($m.Groups[1].Value,'<[^>]*>','')).Trim())
+            } else { '' }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($values.Name)) {
+            # Location is exclusively a user-maintained alias: never scrape a city into it.
+            $results.Add([pscustomobject]@{
+                Name=$values.Name; Location=''; Phone=$values.Phone; Address1=$values.Address1
+                Address2=$values.Address2; Locality=$values.Locality; State=$values.State; Zip=$values.Zip
+            })
+        }
+    }
+    Start-Sleep -Seconds 1
+}
+if (-not $endConfirmed -or $results.Count -eq 0) {
+    throw 'The scrape did not reach a safe ending or returned no facilities; no JSON was overwritten.'
+}
+# Keep master and local aliases independent. Do not import master aliases into
+# the local file: an old master could contain incorrect propagated aliases.
+$localMerged = @(Merge-LocationData -Fresh $results.ToArray() -Existing $localExisting)
+Assert-AliasesPreserved -Before $localExisting -After $localMerged
+Save-LocationJson -Path $LocalPath -Records $localMerged
+Write-Host ('Updated LOCAL: {0} ({1} facilities)' -f $LocalPath,$localMerged.Count) -ForegroundColor Green
+if (-not $SkipMaster) {
+    try {
+        # Master aliases are preserved independently; no local-to-master propagation.
+        $forMaster = @(Merge-LocationData -Fresh $results.ToArray() -Existing $masterExisting)
+        Assert-AliasesPreserved -Before $masterExisting -After $forMaster
+        Save-LocationJson -Path $MasterPath -Records $forMaster
+        Write-Host ('Updated MASTER: {0}' -f $MasterPath) -ForegroundColor Green
+    }
+    catch { Write-Warning ('Local file updated; master write failed: {0}' -f $_.Exception.Message) }
+}
+
+
+
+
+
+
 
