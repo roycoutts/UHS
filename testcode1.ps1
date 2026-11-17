@@ -1564,8 +1564,8 @@ function Show-EmolstDataReview {
             $column.Width = [System.Windows.Controls.DataGridLength]::new($(if ($field -eq 'Type') { 125 } elseif ($field -eq 'Admin Role') { 190 } else { 245 }))
             # ComboBox options remain readable when the row background is dark.
             $viewStyle = [System.Windows.Style]::new([System.Windows.Controls.ComboBox])
-            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control.ForegroundProperty], [System.Windows.Media.Brushes]::Black))
-            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control.BackgroundProperty], [System.Windows.Media.Brushes]::White))
+            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control]::ForegroundProperty, [System.Windows.Media.Brushes]::Black))
+            $viewStyle.Setters.Add([System.Windows.Setter]::new([System.Windows.Controls.Control]::BackgroundProperty, [System.Windows.Media.Brushes]::White))
             $column.EditingElementStyle = $viewStyle
         } else {
             $column = [System.Windows.Controls.DataGridTextColumn]::new()
