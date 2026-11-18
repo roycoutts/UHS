@@ -648,6 +648,9 @@ function Read-ClinicalFavorites {
     if (-not (Test-Path -LiteralPath $script:FavoritesPath -PathType Leaf)) { return }
     try {
         $data = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($script:FavoritesPath)) -ErrorAction Stop
+        if ($null -ne $data -and $null -ne $data.PSObject.Properties['SyncRoot']) {
+            $data = $data.SyncRoot
+        }
         foreach ($f in @($data)) {
             if ($null -eq $f -or [string]::IsNullOrWhiteSpace([string]$f.Label) -or
                 [string]::IsNullOrWhiteSpace([string]$f.Name)) { continue }
@@ -1387,7 +1390,19 @@ function Show-TaskLocationDialog {
                         <TextBlock Text="Clinical Location Favorites" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </DockPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="100">
-                        <WrapPanel x:Name="panelFavorites"/>
+                        <ItemsControl x:Name="itemsFavorites">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Label}" Tag="{Binding}"
+                                            MinWidth="70" Padding="12,6" Margin="0,0,8,7"
+                                            Background="#17657A" Foreground="White"
+                                            ToolTip="{Binding Name}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </ScrollViewer>
                     <TextBlock x:Name="txtFavoritesEmpty" Text="No favorites yet. Click Manage Favorites to add a button." Foreground="#9FB5D0"/>
                 </StackPanel>
@@ -1424,42 +1439,49 @@ function Show-TaskLocationDialog {
             $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
         }
     })
-    # Recreate the shortcut buttons whenever favorites are edited.
-    $favoritesPanel = $dlg.FindName('panelFavorites')
+    # Bind favorites directly to an ObservableCollection. WPF updates buttons
+    # automatically when favorites are added, renamed or removed.
+    $favoritesItems = $dlg.FindName('itemsFavorites')
     $emptyFavorites = $dlg.FindName('txtFavoritesEmpty')
-    $refreshFavorites = {
-        $favoritesPanel.Children.Clear()
-        $emptyFavorites.Visibility = if ($script:ClinicalFavorites.Count -eq 0) { 'Visible' } else { 'Collapsed' }
-        foreach ($favorite in $script:ClinicalFavorites) {
-            $button = [System.Windows.Controls.Button]::new()
-            $button.Content = [string]$favorite.Label
-            $button.Tag = $favorite
-            $button.MinWidth = 70
-            $button.Padding = [System.Windows.Thickness]::new(12,6,12,6)
-            $button.Margin = [System.Windows.Thickness]::new(0,0,8,7)
-            $button.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#17657A')
-            $button.Foreground = [System.Windows.Media.Brushes]::White
-            $button.ToolTip = [string]$favorite.Name + ' | ' + [string]$favorite.Address1
-            $button.Add_Click({
-                $fav = $this.Tag
-                $loc = Resolve-ClinicalFavorite -Favorite $fav
-                if ($null -eq $loc) {
-                    [System.Windows.MessageBox]::Show($dlg,
-                        ('Favorite "{0}" could not be uniquely matched to a current clinical facility. Open Manage Favorites, remove it, and add it again.' -f $fav.Label),
-                        'Favorite Not Found','OK','Warning') | Out-Null
-                    return
-                }
-                Set-TaskClinicalLocation -Task $Task -Location $loc
-                $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
-            }.GetNewClosure())
-            [void]$favoritesPanel.Children.Add($button)
+    $favoritesItems.ItemsSource = $script:ClinicalFavorites
+
+    $showFavoritesEmpty = {
+        $emptyFavorites.Visibility = if ($script:ClinicalFavorites.Count -eq 0) {
+            [System.Windows.Visibility]::Visible
+        } else {
+            [System.Windows.Visibility]::Collapsed
         }
     }.GetNewClosure()
+    & $showFavoritesEmpty
+
+    # Event delegation handles all dynamically generated favorite buttons.
+    # No button-specific WPF handlers need to be rebuilt after editing.
+    $favoriteClicked = [System.Windows.RoutedEventHandler]{
+        param($sender, $eventArgs)
+        $source = $eventArgs.OriginalSource
+        if ($source -isnot [System.Windows.Controls.Button]) { return }
+        $fav = $source.Tag
+        if ($null -eq $fav) { return }
+        $loc = Resolve-ClinicalFavorite -Favorite $fav
+        if ($null -eq $loc) {
+            [System.Windows.MessageBox]::Show($dlg,
+                ('Favorite "{0}" could not be uniquely matched to a current clinical facility. Open Manage Favorites and reselect it.' -f $fav.Label),
+                'Favorite Not Found','OK','Warning') | Out-Null
+            return
+        }
+        Set-TaskClinicalLocation -Task $Task -Location $loc
+        $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
+        $eventArgs.Handled = $true
+    }.GetNewClosure()
+    $favoritesItems.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, $favoriteClicked)
+
     $dlg.FindName('btnManageFavorites').Add_Click({
         Show-ClinicalFavoritesManager -DialogOwner $dlg
-        & $refreshFavorites
+        # Re-read persisted favorites after the manager closes so the current
+        # window shows exactly what was committed to disk.
+        Read-ClinicalFavorites
+        & $showFavoritesEmpty
     }.GetNewClosure())
-    & $refreshFavorites
     $dlg.FindName('btnProvider').Add_Click({
         if (Invoke-DoctorMasterLookup -Task $Task -DialogOwner $dlg) {
             $providerText.Text = 'Provider: ' + $Task.ProviderLocationDisplay + ' | NPI: ' + $Task.ProviderNPI
