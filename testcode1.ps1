@@ -1795,10 +1795,28 @@ function Write-EmolstClavierConfig {
         $tab = '[Tab]' + $wait + $wait
         $paste = $wait + '[Ctrl + V]' + $wait + $tab
         $parts = [System.Collections.Generic.List[string]]::new()
+        # Clavier cannot reliably execute [{Copy,}] for a blank value.
+        # Use a TAB ONLY for empty optional fields to keep all subsequent
+        # values aligned with their actual EMOLST form controls.
+        # The 19-element sequence is fixed: index 15 = Provider NPI,
+        # 16 = Provider State License, 17 = SSO Username, 18 = Identity Provider.
+        if ([string]::IsNullOrWhiteSpace($values[0])) {
+            throw 'EMOLST Username is empty. Review and apply the EMOLST data before arming.'
+        }
         $parts.Add('[{Copy,' + $values[0] + '}]' + $paste)
-        $parts.Add($tab)
-        foreach ($value in $values[1..18]) {
-            $parts.Add('[{Copy,' + $value + '}]' + $paste)
+        $parts.Add($tab) # C02: deliberately skip the next form field.
+        for ($index = 1; $index -lt $values.Count; $index++) {
+            if ([string]::IsNullOrWhiteSpace($values[$index])) {
+                $parts.Add($tab)
+            } else {
+                $parts.Add('[{Copy,' + $values[$index] + '}]' + $paste)
+            }
+            # After Email Address (index 14), the EMOLST form focuses the
+            # red "NPI Search" link before the Provider NPI input. Advance
+            # past that link, regardless of whether the NPI value is blank.
+            if ($index -eq 14) {
+                $parts.Add($tab)
+            }
         }
         $lines += 'Shortcut=`'
         $lines += 'Code=192'
