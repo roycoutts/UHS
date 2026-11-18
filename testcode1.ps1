@@ -235,6 +235,10 @@ $script:Users = [System.Collections.ObjectModel.ObservableCollection[object]]::n
 $script:TaskProperties = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
 $script:Locations = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
 $script:LocationsPath = Join-Path $env:LOCALAPPDATA 'Get-UHSLocations\Local-UHS-Locations.json'
+# Favorites are independent of the refreshable facility catalog.
+$script:FavoritesPath = Join-Path $env:LOCALAPPDATA 'Get-UHSLocations\ClinicalLocationFavorites.json'
+$script:ClinicalFavorites = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+
 $script:UpdaterPath = Join-Path $PSScriptRoot 'Update-UHSLocations.ps1'
 # DoctorMaster is deliberately loaded once per application session, on first use.
 $script:DoctorMasterPath = $null
@@ -639,6 +643,164 @@ function Save-ClinicalAliases {
     }
     finally { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue } }
 }
+function Read-ClinicalFavorites {
+    $script:ClinicalFavorites.Clear()
+    if (-not (Test-Path -LiteralPath $script:FavoritesPath -PathType Leaf)) { return }
+    try {
+        $data = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($script:FavoritesPath)) -ErrorAction Stop
+        foreach ($f in @($data)) {
+            if ($null -eq $f -or [string]::IsNullOrWhiteSpace([string]$f.Label) -or
+                [string]::IsNullOrWhiteSpace([string]$f.Name)) { continue }
+            $script:ClinicalFavorites.Add([pscustomobject]@{
+                Label=[string]$f.Label; Name=[string]$f.Name
+                Address1=[string]$f.Address1; Locality=[string]$f.Locality
+                Zip=[string]$f.Zip
+            })
+        }
+        Write-Activity ('Loaded {0} clinical location favorites.' -f $script:ClinicalFavorites.Count)
+    }
+    catch {
+        Write-Activity ('Unable to read clinical location favorites: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show($window,
+            ('Cannot read favorites file. It was not modified. ' + $_.Exception.Message),
+            'Favorites Load Error','OK','Warning') | Out-Null
+    }
+}
+function Save-ClinicalFavorites {
+    $folder = Split-Path -Parent $script:FavoritesPath
+    if (-not (Test-Path -LiteralPath $folder)) { $null = New-Item -ItemType Directory -Path $folder -Force }
+    $tmp = Join-Path $folder ('.favorites-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        $rows = @($script:ClinicalFavorites | ForEach-Object {
+            [pscustomobject][ordered]@{
+                Label=[string]$_.Label; Name=[string]$_.Name
+                Address1=[string]$_.Address1; Locality=[string]$_.Locality; Zip=[string]$_.Zip
+            }
+        })
+        # -InputObject forces a JSON array even for zero or one favorites.
+        $json = ConvertTo-Json -InputObject $rows -Depth 6
+        [System.IO.File]::WriteAllText($tmp,$json,[System.Text.UTF8Encoding]::new($true))
+        if (Test-Path -LiteralPath $script:FavoritesPath) {
+            Copy-Item -LiteralPath $script:FavoritesPath -Destination ($script:FavoritesPath + '.bak') -Force
+        }
+        Move-Item -LiteralPath $tmp -Destination $script:FavoritesPath -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    }
+}
+function Resolve-ClinicalFavorite {
+    param($Favorite)
+    if ($null -eq $Favorite) { return $null }
+    # Exact facility name is mandatory. Never match on address alone: several
+    # UHS departments can legitimately share the same street address.
+    $matches = @($script:Locations | Where-Object {
+        [string]$_.Name -ieq [string]$Favorite.Name
+    })
+    if ($matches.Count -eq 1) { return $matches[0] }
+    if ($matches.Count -gt 1) {
+        $matches = @($matches | Where-Object {
+            [string]$_.Address1 -ieq [string]$Favorite.Address1 -and
+            [string]$_.Locality -ieq [string]$Favorite.Locality -and
+            [string]$_.Zip -ieq [string]$Favorite.Zip
+        })
+        if ($matches.Count -eq 1) { return $matches[0] }
+    }
+    return $null
+}
+function Show-ClinicalFavoritesManager {
+    param($DialogOwner = $window)
+    [xml]$xaml = @'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manage Clinical Location Favorites" Width="660" Height="420"
+        MinWidth="550" MinHeight="310" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" Background="#152237" Foreground="#E6EDF7">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" Text="Add a shortcut for a specific facility, then rename or remove it here. Favorites persist between sessions."
+                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="btnAdd" Content="Add Favorite" Padding="12,7" Margin="0,0,8,0"/>
+            <Button x:Name="btnRename" Content="Rename Button" Padding="12,7" Margin="0,0,8,0"/>
+            <Button x:Name="btnRemove" Content="Remove" Padding="12,7" Margin="0,0,8,0"/>
+            <Button x:Name="btnClose" Content="Done" Padding="12,7" MinWidth="70"/>
+        </StackPanel>
+        <DataGrid x:Name="gridFavorites" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                  SelectionMode="Single" Background="#EDF3FA" Foreground="#122039"
+                  RowBackground="#EDF3FA" AlternatingRowBackground="#DCE6F4">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Button Name" Binding="{Binding Label}" Width="140"/>
+                <DataGridTextColumn Header="Clinical Facility" Binding="{Binding Name}" Width="*"/>
+                <DataGridTextColumn Header="Address" Binding="{Binding Address1}" Width="185"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>
+'@
+    $dlg = ConvertFrom-WpfXaml $xaml
+    $dlg.Owner = $DialogOwner
+    $dlg.Topmost = $true
+    $grid = $dlg.FindName('gridFavorites')
+    $grid.ItemsSource = $script:ClinicalFavorites
+    $dlg.FindName('btnAdd').Add_Click({
+        if ($script:Locations.Count -eq 0) {
+            [System.Windows.MessageBox]::Show($dlg,'Load clinical locations before adding a favorite.','No Locations','OK','Warning') | Out-Null
+            return
+        }
+        $loc = Show-LocationPicker -Title 'Choose a Clinical Location for Favorite' -DialogOwner $dlg
+        if ($null -eq $loc) { return }
+        $suggested = if (-not [string]::IsNullOrWhiteSpace([string]$loc.Location)) { [string]$loc.Location } else { [string]$loc.Name }
+        $label = Show-TextPrompt -Title 'New Favorite' -Message 'Enter the text for this favorite button:' -DefaultValue $suggested -DialogOwner $dlg
+        if ($null -eq $label -or [string]::IsNullOrWhiteSpace($label)) { return }
+        $label = $label.Trim()
+        if (@($script:ClinicalFavorites | Where-Object { [string]$_.Label -ieq $label }).Count -gt 0) {
+            [System.Windows.MessageBox]::Show($dlg,'A favorite already has that button name.','Duplicate Name','OK','Warning') | Out-Null
+            return
+        }
+        $fav = [pscustomobject]@{ Label=$label; Name=[string]$loc.Name; Address1=[string]$loc.Address1;
+                                 Locality=[string]$loc.Locality; Zip=[string]$loc.Zip }
+        $script:ClinicalFavorites.Add($fav)
+        try { Save-ClinicalFavorites; Write-Activity ('Added clinical favorite {0} -> {1}.' -f $label,$loc.Name) }
+        catch {
+            $script:ClinicalFavorites.Remove($fav)
+            [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Save Favorites Failed','OK','Error') | Out-Null
+        }
+    })
+    $dlg.FindName('btnRename').Add_Click({
+        $fav = $grid.SelectedItem
+        if ($null -eq $fav) { return }
+        $name = Show-TextPrompt -Title 'Rename Favorite' -Message 'Enter the new button label:' -DefaultValue $fav.Label -DialogOwner $dlg
+        if ($null -eq $name -or [string]::IsNullOrWhiteSpace($name)) { return }
+        $name = $name.Trim()
+        if (@($script:ClinicalFavorites | Where-Object { $_ -ne $fav -and [string]$_.Label -ieq $name }).Count -gt 0) {
+            [System.Windows.MessageBox]::Show($dlg,'A favorite already has that name.','Duplicate Name','OK','Warning') | Out-Null
+            return
+        }
+        $before = $fav.Label
+        $fav.Label = $name
+        try { Save-ClinicalFavorites; $grid.Items.Refresh(); Write-Activity ('Renamed favorite {0} to {1}.' -f $before,$name) }
+        catch {
+            $fav.Label = $before
+            [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Save Favorites Failed','OK','Error') | Out-Null
+        }
+    })
+    $dlg.FindName('btnRemove').Add_Click({
+        $fav = $grid.SelectedItem
+        if ($null -eq $fav) { return }
+        if ([System.Windows.MessageBox]::Show($dlg,('Remove favorite "{0}"? The clinical facility itself will not be deleted.' -f $fav.Label),
+            'Remove Favorite','YesNo','Question') -ne 'Yes') { return }
+        $index = $script:ClinicalFavorites.IndexOf($fav)
+        $script:ClinicalFavorites.Remove($fav)
+        try { Save-ClinicalFavorites; Write-Activity ('Removed clinical favorite {0}.' -f $fav.Label) }
+        catch {
+            $script:ClinicalFavorites.Insert($index,$fav)
+            [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Save Favorites Failed','OK','Error') | Out-Null
+        }
+    })
+    $dlg.FindName('btnClose').Add_Click({ $dlg.Close() })
+    $dlg.ShowDialog() | Out-Null
+}
+
 function Set-TaskClinicalLocation {
     param($Task,$Location)
     $Task.ClinicalLocationName = [string]$Location.Name
@@ -1186,7 +1348,7 @@ function Show-TaskLocationDialog {
     [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="790" Height="460" MinWidth="680" MinHeight="410"
+        Width="790" Height="535" MinWidth="680" MinHeight="470"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="#152237" Foreground="White">
     <DockPanel Margin="18">
@@ -1218,6 +1380,18 @@ function Show-TaskLocationDialog {
                 <Button x:Name="btnClinical" Content="Clinical Location Lookup" MinWidth="220" Padding="12,9" Margin="0,0,12,0"/>
                 <Button x:Name="btnProvider" Content="Provider Location Lookup" MinWidth="220" Padding="12,9"/>
             </StackPanel>
+            <Border Background="#203451" BorderBrush="#3B5471" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,12,0,5">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,7">
+                        <Button x:Name="btnManageFavorites" DockPanel.Dock="Right" Content="Manage Favorites..." Padding="9,4" MinHeight="28" Margin="8,0,0,0"/>
+                        <TextBlock Text="Clinical Location Favorites" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="100">
+                        <WrapPanel x:Name="panelFavorites"/>
+                    </ScrollViewer>
+                    <TextBlock x:Name="txtFavoritesEmpty" Text="No favorites yet. Click Manage Favorites to add a button." Foreground="#9FB5D0"/>
+                </StackPanel>
+            </Border>
             <TextBlock x:Name="txtClinical" TextWrapping="Wrap" Margin="0,12,0,5"/>
             <TextBlock x:Name="txtProvider" TextWrapping="Wrap" Margin="0,0,0,6"/>
             <TextBlock Text="Select either lookup to change its assignment. Next Task preserves your choices." Foreground="#9FB5D0" TextWrapping="Wrap" Margin="0,12,0,0"/>
@@ -1250,6 +1424,42 @@ function Show-TaskLocationDialog {
             $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
         }
     })
+    # Recreate the shortcut buttons whenever favorites are edited.
+    $favoritesPanel = $dlg.FindName('panelFavorites')
+    $emptyFavorites = $dlg.FindName('txtFavoritesEmpty')
+    $refreshFavorites = {
+        $favoritesPanel.Children.Clear()
+        $emptyFavorites.Visibility = if ($script:ClinicalFavorites.Count -eq 0) { 'Visible' } else { 'Collapsed' }
+        foreach ($favorite in $script:ClinicalFavorites) {
+            $button = [System.Windows.Controls.Button]::new()
+            $button.Content = [string]$favorite.Label
+            $button.Tag = $favorite
+            $button.MinWidth = 70
+            $button.Padding = [System.Windows.Thickness]::new(12,6,12,6)
+            $button.Margin = [System.Windows.Thickness]::new(0,0,8,7)
+            $button.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#17657A')
+            $button.Foreground = [System.Windows.Media.Brushes]::White
+            $button.ToolTip = [string]$favorite.Name + ' | ' + [string]$favorite.Address1
+            $button.Add_Click({
+                $fav = $this.Tag
+                $loc = Resolve-ClinicalFavorite -Favorite $fav
+                if ($null -eq $loc) {
+                    [System.Windows.MessageBox]::Show($dlg,
+                        ('Favorite "{0}" could not be uniquely matched to a current clinical facility. Open Manage Favorites, remove it, and add it again.' -f $fav.Label),
+                        'Favorite Not Found','OK','Warning') | Out-Null
+                    return
+                }
+                Set-TaskClinicalLocation -Task $Task -Location $loc
+                $clinicalText.Text = 'Clinical: ' + $Task.ClinicalLocationDisplay
+            }.GetNewClosure())
+            [void]$favoritesPanel.Children.Add($button)
+        }
+    }.GetNewClosure()
+    $dlg.FindName('btnManageFavorites').Add_Click({
+        Show-ClinicalFavoritesManager -DialogOwner $dlg
+        & $refreshFavorites
+    }.GetNewClosure())
+    & $refreshFavorites
     $dlg.FindName('btnProvider').Add_Click({
         if (Invoke-DoctorMasterLookup -Task $Task -DialogOwner $dlg) {
             $providerText.Text = 'Provider: ' + $Task.ProviderLocationDisplay + ' | NPI: ' + $Task.ProviderNPI
@@ -2230,6 +2440,7 @@ $gridTasks.Add_SelectionChanged({
 $gridUsers.Add_SelectionChanged({ Sync-SelectionFromUser })
 Update-Counters
 Update-WorkflowButtons
+Read-ClinicalFavorites
 Read-ClinicalLocations
 Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations -> Add SSO -> Create EMOLST Data.'
 [void]$window.ShowDialog()
