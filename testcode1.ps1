@@ -1404,7 +1404,18 @@ function Show-TaskLocationDialog {
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                    <TextBlock x:Name="txtFavoritesEmpty" Text="No favorites yet. Click Manage Favorites to add a button." Foreground="#9FB5D0"/>
+                    <TextBlock x:Name="txtFavoritesEmpty" Text="No favorites yet. Click Manage Favorites to add a button." Foreground="#9FB5D0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ElementName=itemsFavorites, Path=HasItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </StackPanel>
             </Border>
             <TextBlock x:Name="txtClinical" TextWrapping="Wrap" Margin="0,12,0,5"/>
@@ -1442,17 +1453,9 @@ function Show-TaskLocationDialog {
     # Bind favorites directly to an ObservableCollection. WPF updates buttons
     # automatically when favorites are added, renamed or removed.
     $favoritesItems = $dlg.FindName('itemsFavorites')
-    $emptyFavorites = $dlg.FindName('txtFavoritesEmpty')
+    # The empty message uses a XAML DataTrigger bound to itemsFavorites.HasItems.
+    # WPF now updates its visibility whenever the observable collection changes.
     $favoritesItems.ItemsSource = $script:ClinicalFavorites
-
-    $showFavoritesEmpty = {
-        $emptyFavorites.Visibility = if ($script:ClinicalFavorites.Count -eq 0) {
-            [System.Windows.Visibility]::Visible
-        } else {
-            [System.Windows.Visibility]::Collapsed
-        }
-    }.GetNewClosure()
-    & $showFavoritesEmpty
 
     # Event delegation handles all dynamically generated favorite buttons.
     # No button-specific WPF handlers need to be rebuilt after editing.
@@ -1480,7 +1483,6 @@ function Show-TaskLocationDialog {
         # Re-read persisted favorites after the manager closes so the current
         # window shows exactly what was committed to disk.
         Read-ClinicalFavorites
-        & $showFavoritesEmpty
     }.GetNewClosure())
     $dlg.FindName('btnProvider').Add_Click({
         if (Invoke-DoctorMasterLookup -Task $Task -DialogOwner $dlg) {
