@@ -1751,7 +1751,8 @@ function Get-ClavierExecutable {
 function Get-EmolstClavierFields {
     param([Parameter(Mandatory)]$Task)
     # Position C02 intentionally contains just a Tab, matching the supplied macro.
-    return ,@(
+    # Emit each of the 19 fields separately; unary comma would nest the entire array.
+    return @(
         [string]$Task.EmolstUserName,
         [string]$Task.EmolstAdminRole,
         [string]$Task.EmolstClinicalRole,
