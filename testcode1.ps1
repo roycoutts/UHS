@@ -2053,14 +2053,19 @@ $disarmMenuItem = [System.Windows.Controls.MenuItem]::new()
 $disarmMenuItem.Header = 'Disarm EMOLST Script'
 $copySummaryMenuItem = [System.Windows.Controls.MenuItem]::new()
 $copySummaryMenuItem.Header = 'Copy EMOLST Summary'
+$removeTaskMenuItem = [System.Windows.Controls.MenuItem]::new()
+$removeTaskMenuItem.Header = 'Remove Task'
 [void]$taskMenu.Items.Add($armMenuItem)
 [void]$taskMenu.Items.Add($disarmMenuItem)
 [void]$taskMenu.Items.Add(([System.Windows.Controls.Separator]::new()))
 [void]$taskMenu.Items.Add($copySummaryMenuItem)
+[void]$taskMenu.Items.Add(([System.Windows.Controls.Separator]::new()))
+[void]$taskMenu.Items.Add($removeTaskMenuItem)
 $taskMenu.Add_Opened({
     $task = $gridTasks.SelectedItem
     $armMenuItem.IsEnabled = ($null -ne $task -and $task.EmolstReviewApplied -eq $true)
     $disarmMenuItem.IsEnabled = ($null -ne $task)
+    $removeTaskMenuItem.IsEnabled = ($null -ne $task)
     $copySummaryMenuItem.IsEnabled = ($null -ne $task -and $task.EmolstReviewApplied -eq $true)
     $copySummaryMenuItem.ToolTip = if ($copySummaryMenuItem.IsEnabled) { 'Copy and save the reviewed EMOLST fields.' } else { 'Apply Create EMOLST Data first.' }
     $armMenuItem.ToolTip = if ($armMenuItem.IsEnabled) { 'Load the selected task into Clavier.' } else { 'Run Create EMOLST Data and Apply to Tasks first.' }
@@ -2087,6 +2092,51 @@ $copySummaryMenuItem.Add_Click({
     } catch {
         Write-Activity ('EMOLST summary error for Task {0}: {1}' -f $task.TaskID,$_.Exception.Message)
         [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'EMOLST Summary Error','OK','Error') | Out-Null
+    }
+})
+# Removing a task never requires an AD match or an EMOLST summary.
+$removeTaskMenuItem.Add_Click({
+    try {
+        $task = $gridTasks.SelectedItem
+        if ($null -eq $task) { return }
+        $taskId = [string]$task.TaskID
+        $linkedUser = @($script:Users | Where-Object { [string]$_.TaskID -eq $taskId })
+        $summaryWarning = if ($task.EmolstSummaryCopied -eq $true) {
+            'An EMOLST summary has been copied for this task.'
+        } else {
+            'WARNING: Copy EMOLST Summary has not been completed for this task.'
+        }
+        $message = @(
+            ('Remove Task ID: {0}?' -f $taskId),
+            '',
+            $summaryWarning,
+            ('Associated AD user record(s): {0}' -f $linkedUser.Count),
+            '',
+            'This removes the selected task and its linked user record from this session.',
+            'Other tasks will not be changed.',
+            '',
+            'Continue?'
+        ) -join [Environment]::NewLine
+        $response = [System.Windows.MessageBox]::Show(
+            $window,$message,'Confirm Remove Task',
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Warning,
+            [System.Windows.MessageBoxResult]::No
+        )
+        if ($response -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+        foreach ($userRecord in $linkedUser) { [void]$script:Users.Remove($userRecord) }
+        [void]$script:Tasks.Remove($task)
+        $gridTasks.SelectedItem = $null
+        $script:TaskProperties.Clear()
+        Update-Counters
+        Update-WorkflowButtons
+        Write-Activity ('Removed Task {0} and {1} linked user record(s).' -f $taskId,$linkedUser.Count)
+    } catch {
+        Write-Activity ('Remove Task error: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show(
+            $window,$_.Exception.Message,'Remove Task Error','OK','Error'
+        ) | Out-Null
     }
 })
 $gridTasks.ContextMenu = $taskMenu
