@@ -541,6 +541,8 @@ function Add-AdUserForTask {
         SamAccountName = [string]$user.SamAccountName
         EmployeeID = [string]$user.EmployeeID
         Title = [string]$user.Title
+        Department = [string]$user.Department
+        Office = [string]$user.Office
         EmailAddress = [string]$user.EmailAddress
         UserPrincipalName = [string]$user.UserPrincipalName
         GivenName = [string]$user.GivenName
@@ -1351,7 +1353,7 @@ function Show-TaskLocationDialog {
     [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="790" Height="535" MinWidth="680" MinHeight="470"
+        Width="790" Height="585" MinWidth="680" MinHeight="520"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="#152237" Foreground="White">
     <DockPanel Margin="18">
@@ -1366,17 +1368,22 @@ function Show-TaskLocationDialog {
                 <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Task ID" Margin="0,0,0,8"/>
                 <TextBlock Grid.Row="1" Text="Display Name" Margin="0,0,0,8"/>
                 <TextBlock Grid.Row="2" Text="SamAccount" Margin="0,0,0,8"/>
                 <TextBlock Grid.Row="3" Text="Employee ID" Margin="0,0,0,8"/>
                 <TextBlock Grid.Row="4" Text="Title" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="5" Text="Department" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="6" Text="Office" Margin="0,0,0,8"/>
                 <TextBlock x:Name="valTask" Grid.Column="1" Grid.Row="0" FontWeight="SemiBold"/>
                 <TextBlock x:Name="valName" Grid.Column="1" Grid.Row="1"/>
                 <TextBlock x:Name="valSam" Grid.Column="1" Grid.Row="2"/>
                 <TextBlock x:Name="valEmployee" Grid.Column="1" Grid.Row="3"/>
                 <TextBlock x:Name="valTitle" Grid.Column="1" Grid.Row="4"/>
+                <TextBlock x:Name="valDepartment" Grid.Column="1" Grid.Row="5" TextWrapping="Wrap"/>
+                <TextBlock x:Name="valOffice" Grid.Column="1" Grid.Row="6" TextWrapping="Wrap"/>
             </Grid>
             <Border BorderBrush="#455C79" BorderThickness="0,1,0,0" Margin="0,14,0,12"/>
             <StackPanel Orientation="Horizontal">
@@ -1435,6 +1442,18 @@ function Show-TaskLocationDialog {
     $dlg.FindName('valSam').Text = [string]$user.SamAccountName
     $dlg.FindName('valEmployee').Text = [string]$user.EmployeeID
     $dlg.FindName('valTitle').Text = [string]$user.Title
+    # Values come from Get-ADUser -Properties *; ADObject fallback also supports
+    # user records created before Department/Office were stored directly.
+    $department = [string]$user.Department
+    $office = [string]$user.Office
+    if ([string]::IsNullOrWhiteSpace($department) -and $null -ne $user.ADObject) {
+        $department = [string]$user.ADObject.Department
+    }
+    if ([string]::IsNullOrWhiteSpace($office) -and $null -ne $user.ADObject) {
+        $office = [string]$user.ADObject.Office
+    }
+    $dlg.FindName('valDepartment').Text = $department
+    $dlg.FindName('valOffice').Text = $office
     $clinicalText = $dlg.FindName('txtClinical')
     $providerText = $dlg.FindName('txtProvider')
     $clinicalText.Text = 'Clinical: ' + $(if ($Task.ClinicalLocationDisplay) { $Task.ClinicalLocationDisplay } else { '(not selected)' })
