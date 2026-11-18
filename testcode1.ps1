@@ -101,6 +101,7 @@ Add-Type -AssemblyName System.Xaml
             </Grid.RowDefinitions>
             <WrapPanel Grid.Row="0" Margin="0,0,0,3">
                 <Button x:Name="btnAddTasks" Content="Add Tasks" Background="#17657A"/>
+                <Button x:Name="btnClearTasks" Content="Clear Tasks" Background="#7D4242"/>
                 <Button x:Name="btnAddUsers" Content="Add Users" Background="#17657A"/>
                 <Button x:Name="btnAddLocations" Content="Add Locations" Background="#17657A"/>
                 <Button x:Name="btnAddSSO" Content="Add SSO"/>
@@ -154,7 +155,7 @@ Add-Type -AssemblyName System.Xaml
                         </DataGrid.Columns>
                     </DataGrid>
                     <GridSplitter Grid.Column="1" Width="7" HorizontalAlignment="Stretch" Background="#354B68"/>
-                    <DataGrid x:Name="gridUsers" Grid.Column="2">
+                    <DataGrid x:Name="gridUsers" Grid.Column="2" IsReadOnly="False">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Task ID" Binding="{Binding TaskID}" Width="90"/>
                             <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*"/>
@@ -201,7 +202,7 @@ function ConvertFrom-WpfXaml {
 
 $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
-    'btnAddTasks','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
+    'btnAddTasks','btnClearTasks','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
     'btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
@@ -225,6 +226,19 @@ $gridTasks.ItemsSource = $script:Tasks
 $gridUsers.ItemsSource = $script:Users
 $gridTaskProperties.ItemsSource = $script:TaskProperties
 
+# All identity columns stay read-only; only the new Status column is editable.
+foreach ($column in $gridUsers.Columns) { $column.IsReadOnly = $true }
+$statusColumn = [System.Windows.Controls.DataGridComboBoxColumn]::new()
+$statusColumn.Header = 'Status'
+$statusColumn.ItemsSource = @('To Do','Access Granted','Updated Profile','Re-Enrolled User')
+$statusColumn.SelectedItemBinding = [System.Windows.Data.Binding]::new('Status')
+$statusColumn.SelectedItemBinding.Mode = [System.Windows.Data.BindingMode]::TwoWay
+$statusColumn.SelectedItemBinding.UpdateSourceTrigger = [System.Windows.Data.UpdateSourceTrigger]::PropertyChanged
+$statusColumn.Width = [System.Windows.Controls.DataGridLength]::new(165)
+$statusColumn.IsReadOnly = $false
+[void]$gridUsers.Columns.Add($statusColumn)
+
+
 $script:TaskFieldNames = @(
     'TaskID','TaskType','TaskNote','EmolstUserName','EmolstAdminRole',
     'EmolstClinicalRole','EmolstTitle','EmolstPrefix','EmolstFirstName',
@@ -238,7 +252,7 @@ $script:TaskFieldNames = @(
     'ProviderNumber','ProviderLastName','ProviderFirstName','ProviderMiddleName',
     'ProviderSuffix','ProviderTitle','ProviderNPI','ProviderAddress1','ProviderAddress2',
     'ProviderCity','ProviderState','ProviderZip','ProviderStateLic','ProviderSourceFile',
-    'EmolstReviewApplied'
+    'EmolstReviewApplied','EmolstSummaryCopied','EmolstSummaryFile'
 )
 
 function Write-Activity {
@@ -261,6 +275,7 @@ function New-Task {
     foreach ($field in $script:TaskFieldNames) { $properties[$field] = '' }
     $properties['TaskID'] = $TaskID.Trim()
     $properties['EmolstReviewApplied'] = $false
+    $properties['EmolstSummaryCopied'] = $false
     return [pscustomobject]$properties
 }
 
@@ -447,6 +462,7 @@ function Add-AdUserForTask {
         Surname = [string]$user.Surname
         DistinguishedName = [string]$user.DistinguishedName
         Identifier = $sid
+        Status = 'To Do'
         ADObject = $user
     }
     $script:Users.Add($record)
@@ -1218,7 +1234,21 @@ function Show-TaskSSODialog {
         $dlg.DialogResult = $true
     })
     $dlg.FindName('btnCancel').Add_Click({ $dlg.DialogResult = $false })
-    $dlg.Add_ContentRendered({ $entry.Focus(); $entry.SelectAll() })
+    # Copy this task's SamAccount to the clipboard when its SSO dialog appears.
+    # ContentRendered runs for each task, including after Save/Next or Skip Task.
+    $samToCopy = [string]$user.SamAccountName
+    $dlg.Add_ContentRendered({
+        try {
+            if (-not [string]::IsNullOrWhiteSpace($samToCopy)) {
+                [System.Windows.Clipboard]::SetText($samToCopy)
+            }
+        }
+        catch {
+            $errorLabel.Text = 'Could not copy SamAccount to clipboard: ' + $_.Exception.Message
+        }
+        [void]$entry.Focus()
+        $entry.SelectAll()
+    })
     if ($dlg.ShowDialog() -eq $true) { return $dlg.Tag }
     return [pscustomobject]@{ Action = 'Stop'; Value = '' }
 }
@@ -1239,6 +1269,71 @@ $btnAddTasks.Add_Click({
         if ($null -ne $entered -and -not [string]::IsNullOrWhiteSpace($entered)) { Add-TaskIDs -InputText $entered }
     }
     catch { Write-Activity ('Add Tasks error: {0}' -f $_.Exception.Message) }
+})
+
+# Clear completed tasks safely, allowing the user to retain tasks without a saved summary.
+$btnClearTasks.Add_Click({
+    try {
+        if ($script:Tasks.Count -eq 0) {
+            [System.Windows.MessageBox]::Show($window,'There are no tasks to clear.','Clear Tasks','OK','Information') | Out-Null
+            return
+        }
+
+        $copied = @($script:Tasks | Where-Object { $_.EmolstSummaryCopied -eq $true })
+        $pending = @($script:Tasks | Where-Object { $_.EmolstSummaryCopied -ne $true })
+        $removeAll = $false
+        if ($pending.Count -gt 0) {
+            $message = @(
+                'Some tasks have NOT completed Copy EMOLST Summary.'
+                ''
+                ('Summary copied: {0}' -f $copied.Count)
+                ('Summary not copied: {0}' -f $pending.Count)
+                ''
+                'YES: Clear ALL tasks, including those without summaries.'
+                'NO: Clear ONLY tasks with copied summaries; keep the others.'
+                'CANCEL: Keep all tasks; do not clear anything.'
+            ) -join [Environment]::NewLine
+            $choice = [System.Windows.MessageBox]::Show(
+                $window,$message,'Clear Tasks - Unsaved Summaries',
+                [System.Windows.MessageBoxButton]::YesNoCancel,
+                [System.Windows.MessageBoxImage]::Warning,
+                [System.Windows.MessageBoxResult]::Cancel
+            )
+            if ($choice -eq [System.Windows.MessageBoxResult]::Cancel) { return }
+            $removeAll = ($choice -eq [System.Windows.MessageBoxResult]::Yes)
+        } else {
+            $choice = [System.Windows.MessageBox]::Show(
+                $window,('Remove all {0} tasks and their user assignments? All have copied EMOLST summaries.' -f $script:Tasks.Count),
+                'Confirm Clear Tasks',
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question,
+                [System.Windows.MessageBoxResult]::No
+            )
+            if ($choice -ne [System.Windows.MessageBoxResult]::Yes) { return }
+            $removeAll = $true
+        }
+
+        $toRemove = if ($removeAll) { @($script:Tasks) } else { $copied }
+        if ($toRemove.Count -eq 0) {
+            Write-Activity 'Clear Tasks: no tasks removed; summaries are still pending.'
+            return
+        }
+        $removeIds = @{}
+        foreach ($task in $toRemove) { $removeIds[[string]$task.TaskID] = $true }
+        # Remove associated users as well, so Tasks and Users stay synchronized.
+        foreach ($record in @($script:Users)) {
+            if ($removeIds.ContainsKey([string]$record.TaskID)) { [void]$script:Users.Remove($record) }
+        }
+        foreach ($task in $toRemove) { [void]$script:Tasks.Remove($task) }
+        $gridTasks.SelectedItem = $null
+        $script:TaskProperties.Clear()
+        Update-Counters
+        Update-WorkflowButtons
+        Write-Activity ('Clear Tasks: removed {0}; retained {1} task(s).' -f $toRemove.Count,$script:Tasks.Count)
+    } catch {
+        Write-Activity ('Clear Tasks error: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'Clear Tasks Error','OK','Error') | Out-Null
+    }
 })
 
 $btnAddUsers.Add_Click({
@@ -1491,6 +1586,8 @@ function Save-EmolstReviewToTasks {
             $task.$destination = [string]$row.$field
         }
         $task.EmolstReviewApplied = $true
+        $task.EmolstSummaryCopied = $false
+        $task.EmolstSummaryFile = ''
     }
     $gridTasks.Items.Refresh()
     Update-TaskDetails
@@ -1845,6 +1942,18 @@ function Invoke-EmolstClavier {
         $path = Write-EmolstClavierConfig -Task $Task -Arm $Arm
         if ($Arm) {
             Start-Process -FilePath $exe -ArgumentList ('/load "{0}"' -f $path) -ErrorAction Stop | Out-Null
+            # Make the selected task's reviewed EMOLST username ready to paste
+            # into the sign-in/search field before the Clavier hotkey is used.
+            $emolstUserName = [string]$Task.EmolstUserName
+            if (-not [string]::IsNullOrWhiteSpace($emolstUserName)) {
+                try {
+                    [System.Windows.Clipboard]::SetText($emolstUserName)
+                    Write-Activity ('Copied EMOLST username to clipboard for Task {0}.' -f $Task.TaskID)
+                } catch {
+                    Write-Activity ('Could not copy EMOLST username for Task {0}: {1}' -f $Task.TaskID,$_.Exception.Message)
+                    [System.Windows.MessageBox]::Show($window,('Clavier was loaded, but copying the EMOLST username failed: {0}' -f $_.Exception.Message),'Clipboard Warning','OK','Warning') | Out-Null
+                }
+            }
         } else {
             # Disarming exits Clavier instead of loading an empty shortcut file.
             Start-Process -FilePath $exe -ArgumentList '/quit' -ErrorAction Stop | Out-Null
@@ -1969,6 +2078,11 @@ $copySummaryMenuItem.Add_Click({
     if ($null -eq $task) { return }
     try {
         $file = Copy-EmolstSummary -Task $task
+        # Mark complete only after both file writing and clipboard copy succeed.
+        $task.EmolstSummaryCopied = $true
+        $task.EmolstSummaryFile = [string]$file
+        $gridTasks.Items.Refresh()
+        Update-TaskDetails
         Write-Activity ('Copied EMOLST summary for Task {0}; saved to {1}' -f $task.TaskID,$file)
     } catch {
         Write-Activity ('EMOLST summary error for Task {0}: {1}' -f $task.TaskID,$_.Exception.Message)
