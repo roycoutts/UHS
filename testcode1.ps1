@@ -143,7 +143,26 @@ Add-Type -AssemblyName System.Xaml
                         <ColumnDefinition Width="7"/>
                         <ColumnDefinition Width="*" MinWidth="350"/>
                     </Grid.ColumnDefinitions>
-                    <DataGrid x:Name="gridTasks" Grid.Column="0">
+                    <DataGrid x:Name="gridTasks" Grid.Column="0" CanUserSortColumns="False">
+                        <!-- Completed EMOLST summaries are visually distinguishable, even after selection changes. -->
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding EmolstSummaryCopied}" Value="True">
+                                        <Setter Property="Background" Value="#225941"/>
+                                        <Setter Property="Foreground" Value="#F2FFF7"/>
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding EmolstSummaryCopied}" Value="True"/>
+                                            <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsSelected}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Background" Value="#347C60"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Task ID" Binding="{Binding TaskID}" Width="110"/>
                             <DataGridTextColumn Header="Task Type" Binding="{Binding TaskType}" Width="125"/>
@@ -155,7 +174,7 @@ Add-Type -AssemblyName System.Xaml
                         </DataGrid.Columns>
                     </DataGrid>
                     <GridSplitter Grid.Column="1" Width="7" HorizontalAlignment="Stretch" Background="#354B68"/>
-                    <DataGrid x:Name="gridUsers" Grid.Column="2" IsReadOnly="False">
+                    <DataGrid x:Name="gridUsers" Grid.Column="2" IsReadOnly="False" CanUserSortColumns="False">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Task ID" Binding="{Binding TaskID}" Width="90"/>
                             <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName}" Width="*"/>
@@ -225,6 +244,67 @@ $script:DoctorMasterLoadedAt = $null
 $gridTasks.ItemsSource = $script:Tasks
 $gridUsers.ItemsSource = $script:Users
 $gridTaskProperties.ItemsSource = $script:TaskProperties
+
+# Keep both collections in the task-entry order. Do not sort Task IDs as text:
+# e.g. 2 would otherwise appear after 10. A task without an AD match
+# has no corresponding Users row, but all linked rows retain task order.
+$script:SyncingGridSelection = $false
+function Sync-UserOrderToTasks {
+    $wasSyncing = $script:SyncingGridSelection
+    $script:SyncingGridSelection = $true
+    try {
+        $position = 0
+        foreach ($taskItem in $script:Tasks) {
+            $taskId = [string]$taskItem.TaskID
+            foreach ($userItem in @($script:Users | Where-Object { [string]$_.TaskID -eq $taskId })) {
+                $oldIndex = $script:Users.IndexOf($userItem)
+                if ($oldIndex -ge 0 -and $oldIndex -ne $position) {
+                    $script:Users.Move($oldIndex, $position)
+                }
+                $position++
+            }
+        }
+    }
+    finally { $script:SyncingGridSelection = $wasSyncing }
+}
+
+function Sync-SelectionFromTask {
+    if ($script:SyncingGridSelection) { return }
+    $script:SyncingGridSelection = $true
+    try {
+        $taskItem = $gridTasks.SelectedItem
+        $matchingUser = $null
+        if ($null -ne $taskItem) {
+            $matchingUser = @($script:Users | Where-Object {
+                [string]$_.TaskID -eq [string]$taskItem.TaskID
+            } | Select-Object -First 1)
+            if ($matchingUser.Count -gt 0) { $matchingUser = $matchingUser[0] }
+            else { $matchingUser = $null }
+        }
+        $gridUsers.SelectedItem = $matchingUser
+        if ($null -ne $matchingUser) { $gridUsers.ScrollIntoView($matchingUser) }
+    }
+    finally { $script:SyncingGridSelection = $false }
+}
+
+function Sync-SelectionFromUser {
+    if ($script:SyncingGridSelection) { return }
+    $script:SyncingGridSelection = $true
+    try {
+        $userItem = $gridUsers.SelectedItem
+        $matchingTask = $null
+        if ($null -ne $userItem) {
+            $matched = @($script:Tasks | Where-Object {
+                [string]$_.TaskID -eq [string]$userItem.TaskID
+            } | Select-Object -First 1)
+            if ($matched.Count -gt 0) { $matchingTask = $matched[0] }
+        }
+        $gridTasks.SelectedItem = $matchingTask
+        if ($null -ne $matchingTask) { $gridTasks.ScrollIntoView($matchingTask) }
+        Update-TaskDetails
+    }
+    finally { $script:SyncingGridSelection = $false }
+}
 
 # All identity columns stay read-only; only the new Status column is editable.
 foreach ($column in $gridUsers.Columns) { $column.IsReadOnly = $true }
@@ -410,6 +490,7 @@ function Add-TaskIDs {
         $script:Tasks.Add((New-Task -TaskID $id))
         $added++
     }
+    Sync-UserOrderToTasks
     Update-Counters
     Update-WorkflowButtons
     if ($added -gt 0) {
@@ -466,6 +547,7 @@ function Add-AdUserForTask {
         ADObject = $user
     }
     $script:Users.Add($record)
+    Sync-UserOrderToTasks
     if ([string]::IsNullOrWhiteSpace($Task.EmolstUserName)) {
         $Task.EmolstUserName = [string]$user.SamAccountName
         $gridTasks.Items.Refresh()
@@ -2141,7 +2223,11 @@ $removeTaskMenuItem.Add_Click({
 })
 $gridTasks.ContextMenu = $taskMenu
 
-$gridTasks.Add_SelectionChanged({ Update-TaskDetails })
+$gridTasks.Add_SelectionChanged({
+    Update-TaskDetails
+    Sync-SelectionFromTask
+})
+$gridUsers.Add_SelectionChanged({ Sync-SelectionFromUser })
 Update-Counters
 Update-WorkflowButtons
 Read-ClinicalLocations
