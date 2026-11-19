@@ -111,6 +111,7 @@ Add-Type -AssemblyName System.Xaml
                 <Button x:Name="btnAddTasks" Content="Add Tasks" Background="#17657A"/>
                 <Button x:Name="btnClearTasks" Content="Clear Tasks" Background="#7D4242"/>
                 <Button x:Name="btnSaveSession" Content="Save Session"/>
+                <Button x:Name="btnNextIncomplete" Content="Next Incomplete" ToolTip="Select the next task that needs work"/>
                 <Button x:Name="btnAddUsers" Content="Add Users" Background="#17657A"/>
                 <Button x:Name="btnAddLocations" Content="Add Locations" Background="#17657A"/>
                 <Button x:Name="btnAddSSO" Content="Add SSO"/>
@@ -134,12 +135,23 @@ Add-Type -AssemblyName System.Xaml
                 </DockPanel>
             </Border>
             <Grid Grid.Row="2" Margin="0,3,0,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" x:Name="txtTaskCount" Text="Tasks (0)" FontWeight="SemiBold" FontSize="17"/>
-                <TextBlock Grid.Column="1" x:Name="txtUserCount" Text="Users (0)" FontWeight="SemiBold" FontSize="17"/>
+                <TextBlock Grid.Row="0" Grid.Column="0" x:Name="txtTaskCount" Text="Tasks (0)" FontWeight="SemiBold" FontSize="17"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtUserCount" Text="Users (0)" FontWeight="SemiBold" FontSize="17"/>
+                <DockPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,9,0,0" LastChildFill="True">
+                    <Button x:Name="btnClearFilter" Content="Clear Filter" DockPanel.Dock="Right" Padding="9,4" MinHeight="28" Margin="8,0,0,0"/>
+                    <Button x:Name="btnReloadDoctorMaster" Content="Reload DoctorMaster" DockPanel.Dock="Right" Padding="9,4" MinHeight="28" Margin="8,0,0,0"/>
+                    <TextBlock Text="Find:" DockPanel.Dock="Left" Margin="0,5,8,0" FontWeight="SemiBold"/>
+                    <TextBox x:Name="txtTaskSearch" Height="28" VerticalContentAlignment="Center" Padding="7,2"
+                             Background="#EAF1F9" Foreground="#162638" ToolTip="Search both grids by Task ID, user, account, employee ID, email, status, or progress"/>
+                </DockPanel>
             </Grid>
             <Grid Grid.Row="3">
                 <Grid.RowDefinitions>
@@ -175,7 +187,8 @@ Add-Type -AssemblyName System.Xaml
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Task ID" Binding="{Binding TaskID}" Width="110"/>
-                            <DataGridTextColumn Header="Task Type" Binding="{Binding TaskType}" Width="125"/>
+                            <DataGridTextColumn Header="Task Type" Binding="{Binding TaskType}" Width="110"/>
+                            <DataGridTextColumn Header="Progress" Binding="{Binding Progress}" Width="155"/>
                             <DataGridTextColumn Header="Task Note" Binding="{Binding TaskNote}" Width="*"/>
                             <DataGridTextColumn Header="Clinical Location" Binding="{Binding ClinicalLocationDisplay}" Width="170"/>
                             <DataGridTextColumn Header="Provider Location" Binding="{Binding ProviderLocationDisplay}" Width="170"/>
@@ -231,13 +244,13 @@ function ConvertFrom-WpfXaml {
 
 $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
-    'btnAddTasks','btnClearTasks','btnSaveSession','btnEmergencyDisarm','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
+    'btnAddTasks','btnClearTasks','btnSaveSession','btnNextIncomplete','btnEmergencyDisarm','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
     'btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
     'txtClavierState','borderClavierState',
     'btnEditAliases','btnRefreshLocations',
-    'gridTasks','gridUsers','gridTaskProperties'
+    'gridTasks','gridUsers','gridTaskProperties','txtTaskSearch','btnClearFilter','btnReloadDoctorMaster'
 )
 foreach ($name in $controlNames) { Set-Variable -Name $name -Value $window.FindName($name) -Scope Script }
 
@@ -256,6 +269,8 @@ $script:DoctorMasterPath = $null
 $script:DoctorMasterRecords = @()
 $script:DoctorMasterIndex = @{}
 $script:DoctorMasterLoadedAt = $null
+$script:TaskSearchText = ''
+$script:Phase2Refreshing = $false
 $gridTasks.ItemsSource = $script:Tasks
 $gridUsers.ItemsSource = $script:Users
 $gridTaskProperties.ItemsSource = $script:TaskProperties
@@ -358,6 +373,7 @@ function Write-Activity {
     $txtLog.ScrollToEnd()
     $txtStatus.Text = $Message
     Request-SessionSave
+    Update-Phase2Presentation
 }
 
 function Update-Counters {
@@ -377,6 +393,71 @@ $script:SessionLastError = ''
 $script:SessionAdFields = @('DisplayName','SamAccountName','EmployeeID','Title','Department','Office',
     'EmailAddress','mail','UserPrincipalName','GivenName','Surname','sn','middleName','MiddleName',
     'OtherName','DistinguishedName')
+
+# Phase 2: Progress is computed from current task data, not separately persisted.
+# Summary Saved is distinct from the operator's actual outcome Status.
+function Get-TaskProgress {
+    param([Parameter(Mandatory)]$Task)
+    $user = Get-TaskUser -Task $Task
+    if ($null -eq $user) { return 'Task Added' }
+    $hasClinical = -not [string]::IsNullOrWhiteSpace([string]$Task.ClinicalLocationName)
+    $hasProvider = -not [string]::IsNullOrWhiteSpace([string]$Task.ProviderNumber)
+    if (-not ($hasClinical -or $hasProvider)) { return 'User Linked' }
+    if ([string]$Task.EmolstSSOUsername -cnotmatch '^[0-9]{1,8}$') { return 'Location Assigned' }
+    if ($Task.EmolstReviewApplied -ne $true) { return 'SSO Assigned' }
+    if ($Task.EmolstSummaryCopied -ne $true) { return 'EMOLST Ready' }
+    if ([string]$user.Status -in @('Access Granted','Updated Profile','Re-Enrolled User')) { return 'Work Completed' }
+    return 'Summary Saved'
+}
+
+function Test-Phase2TaskMatch {
+    param($Task)
+    if (-not $script:TaskSearchText) { return $true }
+    $user = Get-TaskUser -Task $Task
+    $haystack = @(
+        [string]$Task.TaskID, [string]$Task.TaskType,
+        [string]$Task.Progress, [string]$Task.EmolstUserName,
+        [string]$Task.ClinicalLocationDisplay,[string]$Task.ProviderLocationDisplay,
+        [string]$user.DisplayName,[string]$user.SamAccountName,
+        [string]$user.EmployeeID,[string]$user.EmailAddress,[string]$user.Status
+    ) -join ' | '
+    return ($haystack.IndexOf($script:TaskSearchText,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+$script:TaskView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($script:Tasks)
+$script:UserView = [System.Windows.Data.CollectionViewSource]::GetDefaultView($script:Users)
+$script:TaskView.Filter = [System.Predicate[object]]{
+    param($item)
+    return (Test-Phase2TaskMatch -Task $item)
+}
+$script:UserView.Filter = [System.Predicate[object]]{
+    param($item)
+    $matched = @($script:Tasks | Where-Object { [string]$_.TaskID -eq [string]$item.TaskID } | Select-Object -First 1)
+    return ($matched.Count -gt 0 -and (Test-Phase2TaskMatch -Task $matched[0]))
+}
+
+function Update-Phase2Presentation {
+    if ($script:Phase2Refreshing) { return }
+    $script:Phase2Refreshing = $true
+    try {
+        foreach ($task in $script:Tasks) {
+            $progress = Get-TaskProgress -Task $task
+            if ($null -eq $task.PSObject.Properties['Progress']) {
+                $task | Add-Member -NotePropertyName Progress -NotePropertyValue $progress
+            } else { $task.Progress = $progress }
+        }
+        $script:TaskView.Refresh()
+        $script:UserView.Refresh()
+        $gridTasks.Items.Refresh()
+        $gridUsers.Items.Refresh()
+        $btnNextIncomplete.IsEnabled = (@($script:Tasks | Where-Object { (Get-TaskProgress -Task $_) -ne 'Work Completed' }).Count -gt 0)
+        if ($script:DoctorMasterPath) {
+            $btnReloadDoctorMaster.ToolTip = ('Loaded {0:N0} rows from {1}; imported {2}' -f
+                $script:DoctorMasterRecords.Count,(Split-Path -Leaf $script:DoctorMasterPath),$script:DoctorMasterLoadedAt)
+        } else { $btnReloadDoctorMaster.ToolTip = 'Choose a new DoctorMaster .xls, .xlsx, or .csv file.' }
+    }
+    finally { $script:Phase2Refreshing = $false }
+}
 
 function Get-SessionDocument {
     $taskRecords = @()
@@ -548,7 +629,7 @@ $script:Tasks.Add_CollectionChanged({ Request-SessionSave })
 $script:Users.Add_CollectionChanged({ Request-SessionSave })
 $gridUsers.Add_CellEditEnding({
     # Defer snapshot until the DataGrid has committed its edited value.
-    $null = $window.Dispatcher.BeginInvoke([action]{ Request-SessionSave },
+    $null = $window.Dispatcher.BeginInvoke([action]{ Request-SessionSave; Update-Phase2Presentation },
         [System.Windows.Threading.DispatcherPriority]::Background)
 })
 
@@ -559,6 +640,7 @@ function New-Task {
     $properties['TaskID'] = $TaskID.Trim()
     $properties['EmolstReviewApplied'] = $false
     $properties['EmolstSummaryCopied'] = $false
+    $properties['Progress'] = 'Task Added'
     return [pscustomobject]$properties
 }
 
@@ -1813,6 +1895,66 @@ $btnSaveSession.Add_Click({
         [System.Windows.MessageBox]::Show($window,$script:SessionLastError,'Save Session Failed','OK','Error') | Out-Null
     }
 })
+$txtTaskSearch.Add_TextChanged({
+    $script:TaskSearchText = [string]$txtTaskSearch.Text.Trim()
+    Update-Phase2Presentation
+})
+$btnClearFilter.Add_Click({ $txtTaskSearch.Clear(); [void]$txtTaskSearch.Focus() })
+$btnNextIncomplete.Add_Click({
+    $candidates = @($script:Tasks | Where-Object { (Get-TaskProgress -Task $_) -ne 'Work Completed' })
+    if ($candidates.Count -eq 0) {
+        [System.Windows.MessageBox]::Show($window,'All tasks are marked Work Completed.','Next Incomplete','OK','Information') | Out-Null
+        return
+    }
+    $current = $gridTasks.SelectedItem
+    $startIndex = if ($null -eq $current) { -1 } else { $script:Tasks.IndexOf($current) }
+    $next = $null
+    for ($step=1; $step -le $script:Tasks.Count; $step++) {
+        $idx = ($startIndex + $step) % $script:Tasks.Count
+        $candidate = $script:Tasks[$idx]
+        if ((Get-TaskProgress -Task $candidate) -ne 'Work Completed') { $next = $candidate; break }
+    }
+    if ($null -eq $next) { return }
+    if (-not (Test-Phase2TaskMatch -Task $next)) { $txtTaskSearch.Clear() }
+    $gridTasks.SelectedItem = $next
+    $gridTasks.ScrollIntoView($next)
+    $stage = Get-TaskProgress -Task $next
+    $nextAction = switch ($stage) {
+        'Task Added'        { 'Add Users' }
+        'User Linked'       { 'Add Locations' }
+        'Location Assigned' { 'Add SSO' }
+        'SSO Assigned'      { 'Create EMOLST Data' }
+        'EMOLST Ready'      { 'Arm EMOLST Script or Copy EMOLST Summary' }
+        'Summary Saved'     { 'Set the user Status after confirming the actual EMOLST result' }
+        default             { 'Review this task' }
+    }
+    Write-Activity ('Next incomplete: Task {0} [{1}]. Suggested action: {2}.' -f $next.TaskID,$stage,$nextAction)
+    [System.Windows.MessageBox]::Show($window,
+        ('Task: {0}{1}Progress: {2}{1}Next: {3}' -f $next.TaskID,[Environment]::NewLine,$stage,$nextAction),
+        'Next Incomplete Task','OK','Information') | Out-Null
+})
+$btnReloadDoctorMaster.Add_Click({
+    try {
+        $path = Select-DoctorMasterFile
+        if (-not $path) { return }
+        $oldPath = [string]$script:DoctorMasterPath
+        $window.Cursor = [System.Windows.Input.Cursors]::Wait
+        $btnReloadDoctorMaster.IsEnabled = $false
+        try { Import-DoctorMasterFile -Path $path }
+        finally { $window.Cursor = $null; $btnReloadDoctorMaster.IsEnabled = $true }
+        Update-Phase2Presentation
+        [System.Windows.MessageBox]::Show($window,
+            ('DoctorMaster imported: {0:N0} records.{1}Source: {2}{1}Existing task assignments were NOT silently replaced; rerun Provider Location Lookup for a specific task if needed.' -f
+                $script:DoctorMasterRecords.Count,[Environment]::NewLine,$script:DoctorMasterPath),
+            'DoctorMaster Ready','OK','Information') | Out-Null
+    } catch {
+        $window.Cursor = $null
+        $btnReloadDoctorMaster.IsEnabled = $true
+        Write-Activity ('DoctorMaster reload failed: {0}' -f $_.Exception.Message)
+        [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'DoctorMaster Reload Failed','OK','Error') | Out-Null
+    }
+})
+
 $btnEmergencyDisarm.Add_Click({
     $task = @($script:Tasks | Where-Object { [string]$_.TaskID -eq [string]$script:ClavierArmedTaskId })
     if ($task.Count -gt 0) {
@@ -2762,6 +2904,7 @@ Read-ClinicalFavorites
 Read-ClinicalLocations
 Restore-WorkbenchSession
 Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations -> Add SSO -> Create EMOLST Data.'
+Update-Phase2Presentation
 $window.Add_Closing({
     param($sender,$eventArgs)
     if ($script:ClavierArmedTaskId) {
