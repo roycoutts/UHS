@@ -80,11 +80,19 @@ Add-Type -AssemblyName System.Xaml
     </Window.Resources>
     <DockPanel Margin="16">
         <Border DockPanel.Dock="Top" BorderBrush="#36506F" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,14">
-            <StackPanel>
-                <TextBlock FontSize="25" FontWeight="SemiBold" Text="Clinical Task Workbench"/>
-                <TextBlock Foreground="#9FB5D0" Margin="0,3,0,0"
-                           Text="Task staging, Active Directory lookup, and clinical application integrations"/>
-            </StackPanel>
+            <DockPanel LastChildFill="True">
+                <Border DockPanel.Dock="Right" x:Name="borderClavierState"
+                        Background="#176440" CornerRadius="5" Padding="14,7"
+                        HorizontalAlignment="Right" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <TextBlock x:Name="txtClavierState" Text="DISARMED" Foreground="White"
+                               FontWeight="Bold" FontSize="14"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock FontSize="25" FontWeight="SemiBold" Text="Clinical Task Workbench"/>
+                    <TextBlock Foreground="#9FB5D0" Margin="0,3,0,0"
+                               Text="Task staging, Active Directory lookup, and clinical application integrations"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
         <Border DockPanel.Dock="Bottom" Background="#1D2D43" Padding="10,8" CornerRadius="5" Margin="0,10,0,0">
             <DockPanel>
@@ -102,10 +110,12 @@ Add-Type -AssemblyName System.Xaml
             <WrapPanel Grid.Row="0" Margin="0,0,0,3">
                 <Button x:Name="btnAddTasks" Content="Add Tasks" Background="#17657A"/>
                 <Button x:Name="btnClearTasks" Content="Clear Tasks" Background="#7D4242"/>
+                <Button x:Name="btnSaveSession" Content="Save Session"/>
                 <Button x:Name="btnAddUsers" Content="Add Users" Background="#17657A"/>
                 <Button x:Name="btnAddLocations" Content="Add Locations" Background="#17657A"/>
                 <Button x:Name="btnAddSSO" Content="Add SSO"/>
                 <Button x:Name="btnCreateEMOLST" Content="Create EMOLST Data" Background="#17657A"/>
+                <Button x:Name="btnEmergencyDisarm" Content="Disarm All" Background="#7D4242"/>
                 <Button x:Name="btnLaunchIvanti" Content="Launch Ivanti"/>
                 <Button x:Name="btnLaunchDrMaster" Content="Launch Dr Master"/>
                 <Button x:Name="btnLaunchEMOLST" Content="Launch EMOLST"/>
@@ -221,10 +231,11 @@ function ConvertFrom-WpfXaml {
 
 $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
-    'btnAddTasks','btnClearTasks','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
+    'btnAddTasks','btnClearTasks','btnSaveSession','btnEmergencyDisarm','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
     'btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
+    'txtClavierState','borderClavierState',
     'btnEditAliases','btnRefreshLocations',
     'gridTasks','gridUsers','gridTaskProperties'
 )
@@ -346,12 +357,200 @@ function Write-Activity {
     $txtLog.AppendText($line + [Environment]::NewLine)
     $txtLog.ScrollToEnd()
     $txtStatus.Text = $Message
+    Request-SessionSave
 }
 
 function Update-Counters {
     $txtTaskCount.Text = 'Tasks ({0})' -f $script:Tasks.Count
     $txtUserCount.Text = 'Users ({0})' -f $script:Users.Count
 }
+
+# Session persistence deliberately omits live AD objects (their serialization is
+# unreliable and can expose unnecessary directory information). The small AD
+# snapshot contains only properties actually used by the workbench.
+$script:SessionDirectory = Join-Path $env:LOCALAPPDATA 'ClinicalTaskWorkbench'
+$script:SessionFile = Join-Path $script:SessionDirectory 'ActiveSession.json'
+$script:SessionBackup = Join-Path $script:SessionDirectory 'ActiveSession.json.bak'
+$script:SessionRestoreInProgress = $false
+$script:SessionDirty = $false
+$script:SessionLastError = ''
+$script:SessionAdFields = @('DisplayName','SamAccountName','EmployeeID','Title','Department','Office',
+    'EmailAddress','mail','UserPrincipalName','GivenName','Surname','sn','middleName','MiddleName',
+    'OtherName','DistinguishedName')
+
+function Get-SessionDocument {
+    $taskRecords = @()
+    foreach ($task in $script:Tasks) {
+        $record = [ordered]@{}
+        foreach ($field in $script:TaskFieldNames) { $record[$field] = $task.$field }
+        $taskRecords += [pscustomobject]$record
+    }
+    $userRecords = @()
+    foreach ($user in $script:Users) {
+        $record = [ordered]@{}
+        foreach ($property in $user.PSObject.Properties) {
+            if ($property.Name -ne 'ADObject') { $record[$property.Name] = $property.Value }
+        }
+        $ad = [ordered]@{}
+        $source = if ($null -ne $user.ADObject) { $user.ADObject } else { $user }
+        foreach ($name in $script:SessionAdFields) {
+            $prop = $source.PSObject.Properties[$name]
+            $ad[$name] = if ($null -eq $prop) { '' } else { [string]$prop.Value }
+        }
+        $record['ADObject'] = [pscustomobject]$ad
+        $userRecords += [pscustomobject]$record
+    }
+    return [pscustomobject]@{
+        SchemaVersion = 1
+        SavedAt = (Get-Date).ToString('o')
+        Computer = $env:COMPUTERNAME
+        Tasks = @($taskRecords)
+        Users = @($userRecords)
+    }
+}
+
+function Save-WorkbenchSession {
+    if ($script:SessionRestoreInProgress) { return }
+    $temporary = $null
+    try {
+        if (-not (Test-Path -LiteralPath $script:SessionDirectory -PathType Container)) {
+            [void](New-Item -ItemType Directory -Path $script:SessionDirectory -Force -ErrorAction Stop)
+        }
+        $temporary = Join-Path $script:SessionDirectory ('.session-{0}.tmp' -f [guid]::NewGuid().ToString('N'))
+        $data = Get-SessionDocument | ConvertTo-Json -Depth 12 -Compress
+        [System.IO.File]::WriteAllText($temporary,$data,[System.Text.UTF8Encoding]::new($true))
+        if (Test-Path -LiteralPath $script:SessionFile) {
+            [System.IO.File]::Replace($temporary,$script:SessionFile,$script:SessionBackup,$true)
+        } else {
+            [System.IO.File]::Move($temporary,$script:SessionFile)
+        }
+        $script:SessionDirty = $false
+        $script:SessionLastError = ''
+        return $true
+    }
+    catch {
+        $script:SessionLastError = $_.Exception.Message
+        $txtStatus.Text = 'SESSION SAVE FAILED: ' + $script:SessionLastError
+        return $false
+    }
+    finally {
+        if ($temporary -and (Test-Path -LiteralPath $temporary)) {
+            Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Request-SessionSave {
+    if ($script:SessionRestoreInProgress) { return }
+    $script:SessionDirty = $true
+    if ($null -ne $script:SessionSaveTimer) {
+        $script:SessionSaveTimer.Stop()
+        $script:SessionSaveTimer.Start()
+    }
+}
+
+function Restore-WorkbenchSession {
+    if (-not (Test-Path -LiteralPath $script:SessionFile)) { return }
+    $document = $null
+    $usedBackup = $false
+    foreach ($candidate in @($script:SessionFile,$script:SessionBackup)) {
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        try {
+            $parsed = Get-Content -LiteralPath $candidate -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ([int]$parsed.SchemaVersion -ne 1) { throw 'Unsupported session schema version.' }
+            if ($null -eq $parsed.Tasks -or $null -eq $parsed.Users) { throw 'Session is missing collections.' }
+            $ids = @{}
+            foreach ($task in @($parsed.Tasks)) {
+                $id = [string]$task.TaskID
+                if ([string]::IsNullOrWhiteSpace($id) -or $ids.ContainsKey($id.ToUpperInvariant())) {
+                    throw 'Session has empty or duplicate Task IDs.'
+                }
+                $ids[$id.ToUpperInvariant()] = $true
+            }
+            foreach ($user in @($parsed.Users)) {
+                if (-not $ids.ContainsKey(([string]$user.TaskID).ToUpperInvariant())) {
+                    throw 'Session contains a user without a corresponding task.'
+                }
+            }
+            $document = $parsed
+            $usedBackup = ($candidate -eq $script:SessionBackup)
+            break
+        } catch {
+            $script:SessionLastError = $_.Exception.Message
+        }
+    }
+    if ($null -eq $document) {
+        [System.Windows.MessageBox]::Show($window,
+            'The session and backup could not be read. Existing files were left untouched. New work will not overwrite them until you resolve the issue.',
+            'Session Recovery Failed','OK','Error') | Out-Null
+        $script:SessionRestoreInProgress = $true
+        return
+    }
+    $answer = [System.Windows.MessageBox]::Show($window,
+        ('Restore {0} task(s) and {1} user(s) from the saved session?{2}Saved: {3}{2}{4}' -f
+            @($document.Tasks).Count,@($document.Users).Count,[Environment]::NewLine,$document.SavedAt,
+            $(if ($usedBackup) { 'Using backup because primary session is unusable.' } else { '' })),
+        'Restore Clinical Task Workbench Session','YesNo','Question')
+    if ($answer -ne 'Yes') {
+        # Archive rather than overwrite the old active session when starting new.
+        $archive = Join-Path $script:SessionDirectory ('SkippedSession-{0}.json' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        try {
+            Move-Item -LiteralPath $script:SessionFile -Destination $archive -ErrorAction Stop
+            Write-Activity ('Started a new session; previous active session archived to {0}' -f $archive)
+        } catch {
+            $script:SessionRestoreInProgress = $true
+            [System.Windows.MessageBox]::Show($window,
+                ('Unable to archive the old session; autosave paused to protect it: {0}' -f $_.Exception.Message),
+                'Session Archive Failed','OK','Error') | Out-Null
+        }
+        return
+    }
+    $script:SessionRestoreInProgress = $true
+    try {
+        $script:Tasks.Clear(); $script:Users.Clear()
+        foreach ($saved in @($document.Tasks)) {
+            $task = New-Task -TaskID ([string]$saved.TaskID)
+            foreach ($field in $script:TaskFieldNames) {
+                $prop = $saved.PSObject.Properties[$field]
+                if ($null -ne $prop) { $task.$field = $prop.Value }
+            }
+            $script:Tasks.Add($task)
+        }
+        foreach ($saved in @($document.Users)) { $script:Users.Add($saved) }
+        Sync-UserOrderToTasks
+        Update-Counters
+        Update-WorkflowButtons
+        Write-Activity ('Restored {0} task(s) and {1} user(s).' -f $script:Tasks.Count,$script:Users.Count)
+    }
+    finally { $script:SessionRestoreInProgress = $false }
+    if ($usedBackup) {
+        try {
+            $bad = Join-Path $script:SessionDirectory ('CorruptSession-{0}.json' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+            if (Test-Path -LiteralPath $script:SessionFile) { Move-Item -LiteralPath $script:SessionFile -Destination $bad -ErrorAction Stop }
+            # Copy backup to primary before the next save so a restore retains an intact backup.
+            Copy-Item -LiteralPath $script:SessionBackup -Destination $script:SessionFile -ErrorAction Stop
+        } catch {
+            $script:SessionLastError = $_.Exception.Message
+            [System.Windows.MessageBox]::Show($window,('Backup restored in memory, but repairing the session files failed: {0}' -f $_.Exception.Message),'Recovery Warning','OK','Warning') | Out-Null
+        }
+        Request-SessionSave
+    }
+}
+
+$script:SessionSaveTimer = [System.Windows.Threading.DispatcherTimer]::new()
+$script:SessionSaveTimer.Interval = [TimeSpan]::FromSeconds(1)
+$script:SessionSaveTimer.Add_Tick({
+    $script:SessionSaveTimer.Stop()
+    if ($script:SessionDirty) { [void](Save-WorkbenchSession) }
+})
+# Collection changes, cell edits and explicit workflow operations all request a save.
+$script:Tasks.Add_CollectionChanged({ Request-SessionSave })
+$script:Users.Add_CollectionChanged({ Request-SessionSave })
+$gridUsers.Add_CellEditEnding({
+    # Defer snapshot until the DataGrid has committed its edited value.
+    $null = $window.Dispatcher.BeginInvoke([action]{ Request-SessionSave },
+        [System.Windows.Threading.DispatcherPriority]::Background)
+})
 
 function New-Task {
     param([Parameter(Mandatory)][string]$TaskID)
@@ -808,6 +1007,9 @@ function Show-ClinicalFavoritesManager {
 
 function Set-TaskClinicalLocation {
     param($Task,$Location)
+    $Task.EmolstReviewApplied = $false
+    $Task.EmolstSummaryCopied = $false
+    $Task.EmolstSummaryFile = ''
     $Task.ClinicalLocationName = [string]$Location.Name
     $Task.ClinicalLocationAlias = [string]$Location.Location
     $Task.ClinicalLocationDisplay = if ([string]::IsNullOrWhiteSpace([string]$Location.Location)) { [string]$Location.Name } else { '{0} ({1})' -f $Location.Location,$Location.Name }
@@ -822,6 +1024,7 @@ function Set-TaskClinicalLocation {
     Update-TaskDetails
     Write-Activity ('Task {0}: clinical location set to {1}.' -f $Task.TaskID,$Task.ClinicalLocationDisplay)
     Update-WorkflowButtons
+    Request-SessionSave
 }
 function Show-ClinicalLocationDetails {
     param($Task)
@@ -1298,6 +1501,9 @@ function Set-TaskProviderLocation {
     $Task.ProviderMiddleName = [string]$Provider.'Middle Name'
     $Task.ProviderSuffix     = [string]$Provider.Suffix
     $Task.ProviderTitle      = [string]$Provider.Title
+    $Task.EmolstReviewApplied = $false
+    $Task.EmolstSummaryCopied = $false
+    $Task.EmolstSummaryFile = ''
     $Task.ProviderNPI        = [string]$Provider.NPI
     $Task.ProviderAddress1   = [string]$Provider.Address1
     $Task.ProviderAddress2   = [string]$Provider.Address2
@@ -1315,6 +1521,7 @@ function Set-TaskProviderLocation {
     Update-TaskDetails
     Write-Activity ('Task {0}: DoctorMaster provider {1}; NPI {2}; Source {3}.' -f $Task.TaskID,$Task.ProviderLocationDisplay,$Task.ProviderNPI,(Split-Path -Leaf $script:DoctorMasterPath))
     Update-WorkflowButtons
+    Request-SessionSave
 }
 
 function Invoke-DoctorMasterLookup {
@@ -1598,6 +1805,31 @@ function Show-NotImplemented {
     ) | Out-Null
 }
 
+$btnSaveSession.Add_Click({
+    $script:SessionSaveTimer.Stop()
+    if (Save-WorkbenchSession) {
+        Write-Activity ('Saved active session to {0}.' -f $script:SessionFile)
+    } else {
+        [System.Windows.MessageBox]::Show($window,$script:SessionLastError,'Save Session Failed','OK','Error') | Out-Null
+    }
+})
+$btnEmergencyDisarm.Add_Click({
+    $task = @($script:Tasks | Where-Object { [string]$_.TaskID -eq [string]$script:ClavierArmedTaskId })
+    if ($task.Count -gt 0) {
+        [void](Invoke-EmolstClavier -Task $task[0] -Arm $false)
+    } else {
+        try {
+            $exe = Get-ClavierExecutable
+            Start-Process -FilePath $exe -ArgumentList '/quit' -ErrorAction Stop | Out-Null
+            Set-EmolstClavierIndicator -Armed $false
+            Write-Activity 'Clavier quit requested (Disarm All).'
+        } catch {
+            Write-Activity ('Disarm All failed: {0}' -f $_.Exception.Message)
+            [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'Disarm All Failed','OK','Error') | Out-Null
+        }
+    }
+})
+
 $btnAddTasks.Add_Click({
     try {
         $entered = Show-TextPrompt -Title 'Add Task IDs' -Message 'Enter one Task ID, or multiple IDs separated by commas (or new lines):' -Multiline
@@ -1652,6 +1884,10 @@ $btnClearTasks.Add_Click({
         if ($toRemove.Count -eq 0) {
             Write-Activity 'Clear Tasks: no tasks removed; summaries are still pending.'
             return
+        }
+        if ($script:ClavierArmedTaskId -and @($toRemove | Where-Object { [string]$_.TaskID -eq [string]$script:ClavierArmedTaskId }).Count -gt 0) {
+            $armedTask = @($script:Tasks | Where-Object { [string]$_.TaskID -eq [string]$script:ClavierArmedTaskId })[0]
+            if (-not (Invoke-EmolstClavier -Task $armedTask -Arm $false)) { return }
         }
         $removeIds = @{}
         foreach ($task in $toRemove) { $removeIds[[string]$task.TaskID] = $true }
@@ -1770,6 +2006,11 @@ $btnAddSSO.Add_Click({
             if ($result.Action -eq 'Skip') {
                 Write-Activity ('Add SSO skipped task {0}; existing SSO unchanged.' -f $task.TaskID)
                 continue
+            }
+            if ([string]$task.EmolstSSOUsername -ne [string]$result.Value) {
+                $task.EmolstReviewApplied = $false
+                $task.EmolstSummaryCopied = $false
+                $task.EmolstSummaryFile = ''
             }
             $task.EmolstSSOUsername = [string]$result.Value
             $gridTasks.Items.Refresh()
@@ -1927,6 +2168,7 @@ function Save-EmolstReviewToTasks {
     $gridTasks.Items.Refresh()
     Update-TaskDetails
     Update-WorkflowButtons
+    Request-SessionSave
 }
 
 function Show-EmolstDataReview {
@@ -2269,6 +2511,27 @@ function Write-EmolstClavierConfig {
     return $path
 }
 
+# The indicator tracks Clavier operations initiated by this workbench.
+# Do not infer an external Clavier process state from a task selection.
+$script:ClavierArmedTaskId = $null
+function Set-EmolstClavierIndicator {
+    param($Task, [bool]$Armed)
+    if ($Armed) {
+        $script:ClavierArmedTaskId = [string]$Task.TaskID
+        $first = [string]$Task.EmolstFirstName
+        $last = [string]$Task.EmolstLastName
+        $display = ('{0} {1}' -f $first.Trim(),$last.Trim()).Trim()
+        if ([string]::IsNullOrWhiteSpace($display)) { $display = [string]$Task.EmolstUserName }
+        if ([string]::IsNullOrWhiteSpace($display)) { $display = ('Task {0}' -f $Task.TaskID) }
+        $txtClavierState.Text = 'ARMED - ' + $display
+        $borderClavierState.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#A52C35')
+    } else {
+        $script:ClavierArmedTaskId = $null
+        $txtClavierState.Text = 'DISARMED'
+        $borderClavierState.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#176440')
+    }
+}
+
 function Invoke-EmolstClavier {
     param([Parameter(Mandatory)]$Task,[Parameter(Mandatory)][bool]$Arm)
     try {
@@ -2277,6 +2540,7 @@ function Invoke-EmolstClavier {
         $path = Write-EmolstClavierConfig -Task $Task -Arm $Arm
         if ($Arm) {
             Start-Process -FilePath $exe -ArgumentList ('/load "{0}"' -f $path) -ErrorAction Stop | Out-Null
+            Set-EmolstClavierIndicator -Task $Task -Armed $true
             # Make the selected task's reviewed EMOLST username ready to paste
             # into the sign-in/search field before the Clavier hotkey is used.
             $emolstUserName = [string]$Task.EmolstUserName
@@ -2292,12 +2556,15 @@ function Invoke-EmolstClavier {
         } else {
             # Disarming exits Clavier instead of loading an empty shortcut file.
             Start-Process -FilePath $exe -ArgumentList '/quit' -ErrorAction Stop | Out-Null
+            Set-EmolstClavierIndicator -Task $Task -Armed $false
         }
         $action = if ($Arm) { 'Armed' } else { 'Disarmed' }
         Write-Activity ('{0} EMOLST Clavier shortcut for Task {1}: {2}' -f $action,$Task.TaskID,$path)
+        return $true
     } catch {
         Write-Activity ('Clavier error for Task {0}: {1}' -f $Task.TaskID,$_.Exception.Message)
         [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'EMOLST Clavier Error','OK','Error') | Out-Null
+        return $false
     }
 }
 
@@ -2424,6 +2691,11 @@ $copySummaryMenuItem.Add_Click({
         $gridTasks.Items.Refresh()
         Update-TaskDetails
         Write-Activity ('Copied EMOLST summary for Task {0}; saved to {1}' -f $task.TaskID,$file)
+        # A successful summary completes this task. Stop the active Clavier
+        # shortcut through the same disarm routine used by the context menu.
+        # Invoke-EmolstClavier handles and displays failures itself; on failure
+        # the red ARMED indicator is deliberately left unchanged.
+        Invoke-EmolstClavier -Task $task -Arm $false
     } catch {
         Write-Activity ('EMOLST summary error for Task {0}: {1}' -f $task.TaskID,$_.Exception.Message)
         [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'EMOLST Summary Error','OK','Error') | Out-Null
@@ -2460,6 +2732,9 @@ $removeTaskMenuItem.Add_Click({
         )
         if ($response -ne [System.Windows.MessageBoxResult]::Yes) { return }
 
+        if ($script:ClavierArmedTaskId -eq $taskId) {
+            if (-not (Invoke-EmolstClavier -Task $task -Arm $false)) { return }
+        }
         foreach ($userRecord in $linkedUser) { [void]$script:Users.Remove($userRecord) }
         [void]$script:Tasks.Remove($task)
         $gridTasks.SelectedItem = $null
@@ -2485,5 +2760,24 @@ Update-Counters
 Update-WorkflowButtons
 Read-ClinicalFavorites
 Read-ClinicalLocations
+Restore-WorkbenchSession
 Write-Activity 'Ready. Workflow: Add Tasks -> Add Users -> Add Locations -> Add SSO -> Create EMOLST Data.'
+$window.Add_Closing({
+    param($sender,$eventArgs)
+    if ($script:ClavierArmedTaskId) {
+        $armed = @($script:Tasks | Where-Object { [string]$_.TaskID -eq [string]$script:ClavierArmedTaskId })
+        if ($armed.Count -gt 0 -and -not (Invoke-EmolstClavier -Task $armed[0] -Arm $false)) {
+            $eventArgs.Cancel = $true
+            return
+        }
+    }
+    $script:SessionSaveTimer.Stop()
+    if ($script:SessionDirty -and -not (Save-WorkbenchSession)) {
+        $answer = [System.Windows.MessageBox]::Show($window,
+            ('Unable to save the active session: {0}{1}Exit anyway? Unsaved tasks may be lost.' -f
+                $script:SessionLastError,[Environment]::NewLine),
+            'Session Save Failed','YesNo','Warning')
+        if ($answer -ne 'Yes') { $eventArgs.Cancel = $true }
+    }
+})
 [void]$window.ShowDialog()
