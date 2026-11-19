@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Clinical Task Workbench - PowerShell 5.1 / WPF
+    Clinical Task Workbench - PowerShell 5.1 / WPF (Phase 3)
 .DESCRIPTION
     Topmost GUI for staging Task IDs, associating AD users, and later
     integrating Clinical Locations, Professional Locations, SSO, Ivanti,
@@ -111,6 +111,7 @@ Add-Type -AssemblyName System.Xaml
                 <Button x:Name="btnAddTasks" Content="Add Tasks" Background="#17657A"/>
                 <Button x:Name="btnClearTasks" Content="Clear Tasks" Background="#7D4242"/>
                 <Button x:Name="btnSaveSession" Content="Save Session"/>
+                <Button x:Name="btnTaskDetails" Content="Task Details" ToolTip="View selected task (F4)"/>
                 <Button x:Name="btnNextIncomplete" Content="Next Incomplete" ToolTip="Select the next task that needs work"/>
                 <Button x:Name="btnAddUsers" Content="Add Users" Background="#17657A"/>
                 <Button x:Name="btnAddLocations" Content="Add Locations" Background="#17657A"/>
@@ -150,7 +151,7 @@ Add-Type -AssemblyName System.Xaml
                     <Button x:Name="btnReloadDoctorMaster" Content="Reload DoctorMaster" DockPanel.Dock="Right" Padding="9,4" MinHeight="28" Margin="8,0,0,0"/>
                     <TextBlock Text="Find:" DockPanel.Dock="Left" Margin="0,5,8,0" FontWeight="SemiBold"/>
                     <TextBox x:Name="txtTaskSearch" Height="28" VerticalContentAlignment="Center" Padding="7,2"
-                             Background="#EAF1F9" Foreground="#162638" ToolTip="Search both grids by Task ID, user, account, employee ID, email, status, or progress"/>
+                             Background="#EAF1F9" Foreground="#162638" ToolTip="Ctrl+F to focus. Search both grids by Task ID, user, account, employee ID, email, status, or progress"/>
                 </DockPanel>
             </Grid>
             <Grid Grid.Row="3">
@@ -244,7 +245,7 @@ function ConvertFrom-WpfXaml {
 
 $window = ConvertFrom-WpfXaml $mainXaml
 $controlNames = @(
-    'btnAddTasks','btnClearTasks','btnSaveSession','btnNextIncomplete','btnEmergencyDisarm','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
+    'btnAddTasks','btnClearTasks','btnSaveSession','btnTaskDetails','btnNextIncomplete','btnEmergencyDisarm','btnAddUsers','btnAddLocations','btnAddSSO','btnCreateEMOLST',
     'btnLaunchIvanti','btnLaunchDrMaster','btnLaunchEMOLST',
     'btnLoadIvantiSummary',
     'txtTaskCount','txtUserCount','txtStatus','txtLog','txtLocationInfo','txtLocationLastWrite',
@@ -760,6 +761,138 @@ function Update-TaskDetails {
             Value = [string]$task.$field
         })
     }
+}
+
+# Phase 3: Detailed task inspector. Only Task Note and outcome Status can be
+# edited here; mapped EMOLST data must be edited via Create EMOLST Data.
+function Show-SelectedTaskDetails {
+    param($Task = $gridTasks.SelectedItem)
+    if ($null -eq $Task) {
+        [System.Windows.MessageBox]::Show($window,'Select a task first.','Task Details','OK','Information') | Out-Null
+        return
+    }
+    $user = Get-TaskUser -Task $Task
+    [xml]$detailsXaml = @'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Task Details" Width="850" Height="740" MinWidth="650" MinHeight="500"
+        Background="#101827" Foreground="#E6EDF7" WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False" Topmost="True">
+  <Grid Margin="14">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock x:Name="txtHeading" Grid.Row="0" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,10"/>
+    <Grid Grid.Row="1" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0">
+        <TextBlock x:Name="txtUser" FontWeight="SemiBold"/>
+        <TextBlock x:Name="txtAccount" Foreground="#B9CBDF" Margin="0,4,0,0"/>
+        <TextBlock x:Name="txtProgress" Foreground="#C2D5E9" Margin="0,4,0,0"/>
+      </StackPanel>
+      <StackPanel Grid.Column="1">
+        <TextBlock Text="Outcome Status" Margin="0,0,0,4"/>
+        <ComboBox x:Name="cmbStatus" Height="30" Background="White" Foreground="#182638"/>
+      </StackPanel>
+    </Grid>
+    <StackPanel Grid.Row="2" Margin="0,0,0,12">
+      <TextBlock Text="Task Note" Margin="0,0,0,4" FontWeight="SemiBold"/>
+      <TextBox x:Name="txtNote" Height="57" TextWrapping="Wrap" AcceptsReturn="True"
+               VerticalScrollBarVisibility="Auto" Background="#F1F5FB" Foreground="#162638" Padding="7"/>
+      <TextBlock Text="EMOLST fields below are read-only here. Use Create EMOLST Data to make and validate changes."
+                 Foreground="#B9CBDF" Margin="0,6,0,0" TextWrapping="Wrap"/>
+    </StackPanel>
+    <DataGrid x:Name="gridFields" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True"
+              CanUserAddRows="False" CanUserDeleteRows="False" HeadersVisibility="Column"
+              Background="#192A40" Foreground="#E6EDF7" RowBackground="#192A40"
+              AlternatingRowBackground="#223752" GridLinesVisibility="Horizontal">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Property" Binding="{Binding Property}" Width="230"/>
+        <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+      </DataGrid.Columns>
+    </DataGrid>
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="btnCopyTask" Content="Copy Task ID" Margin="0,0,8,0" Padding="12,7"/>
+      <Button x:Name="btnCopyAccount" Content="Copy SamAccount" Margin="0,0,8,0" Padding="12,7"/>
+      <Button x:Name="btnSave" Content="Save Changes" Margin="0,0,8,0" Padding="12,7"/>
+      <Button x:Name="btnClose" Content="Close" Padding="12,7"/>
+    </StackPanel>
+  </Grid>
+</Window>
+'@
+    $dlg = ConvertFrom-WpfXaml $detailsXaml
+    $dlg.Owner = $window
+    $heading = $dlg.FindName('txtHeading')
+    $heading.Text = ('Task {0} - {1}' -f $Task.TaskID,$Task.TaskType)
+    $dlg.FindName('txtUser').Text = if ($null -eq $user) { 'AD user not assigned' } else { [string]$user.DisplayName }
+    $dlg.FindName('txtAccount').Text = if ($null -eq $user) { '' } else { ('SamAccount: {0}   Employee ID: {1}' -f $user.SamAccountName,$user.EmployeeID) }
+    $dlg.FindName('txtProgress').Text = 'Progress: ' + (Get-TaskProgress -Task $Task)
+    $note = $dlg.FindName('txtNote')
+    $note.Text = [string]$Task.TaskNote
+    $status = $dlg.FindName('cmbStatus')
+    $status.ItemsSource = @('To Do','Access Granted','Updated Profile','Re-Enrolled User')
+    $status.IsEnabled = ($null -ne $user)
+    if ($null -ne $user) { $status.SelectedItem = if ([string]$user.Status) { [string]$user.Status } else { 'To Do' } }
+    $fields = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    foreach ($field in $script:TaskFieldNames) {
+        $fields.Add([pscustomobject]@{ Property=$field; Value=[string]$Task.$field })
+    }
+    if ($null -ne $user) {
+        foreach ($name in @('DisplayName','SamAccountName','EmployeeID','Title','Department','Office','EmailAddress')) {
+            $fields.Add([pscustomobject]@{ Property=('AD ' + $name); Value=[string]$user.$name })
+        }
+    }
+    $dlg.FindName('gridFields').ItemsSource = $fields
+    $dlg.FindName('btnCopyTask').Add_Click({
+        try { [System.Windows.Clipboard]::SetText([string]$Task.TaskID) }
+        catch { [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Clipboard Error','OK','Error') | Out-Null }
+    }.GetNewClosure())
+    $dlg.FindName('btnCopyAccount').IsEnabled = ($null -ne $user -and -not [string]::IsNullOrWhiteSpace([string]$user.SamAccountName))
+    $dlg.FindName('btnCopyAccount').Add_Click({
+        try { [System.Windows.Clipboard]::SetText([string]$user.SamAccountName) }
+        catch { [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Clipboard Error','OK','Error') | Out-Null }
+    }.GetNewClosure())
+    $dlg.FindName('btnSave').Add_Click({
+        try {
+            $changed = $false
+            if ([string]$Task.TaskNote -cne [string]$note.Text) {
+                $Task.TaskNote = [string]$note.Text
+                $changed = $true
+            }
+            if ($null -ne $user -and [string]$user.Status -cne [string]$status.SelectedItem) {
+                $user.Status = [string]$status.SelectedItem
+                $changed = $true
+            }
+            if ($changed) {
+                Update-TaskDetails
+                Update-Phase2Presentation
+                Request-SessionSave
+                Write-Activity ('Updated task note/status for Task {0}.' -f $Task.TaskID)
+            }
+            $dlg.DialogResult = $true
+        } catch { [System.Windows.MessageBox]::Show($dlg,$_.Exception.Message,'Save Task Details','OK','Error') | Out-Null }
+    }.GetNewClosure())
+    $dlg.FindName('btnClose').Add_Click({ $dlg.DialogResult = $false }.GetNewClosure())
+    [void]$dlg.ShowDialog()
+}
+
+function Copy-SelectedTaskValue {
+    param([ValidateSet('TaskID','SamAccount')][string]$Kind)
+    $task = $gridTasks.SelectedItem
+    if ($null -eq $task) { return }
+    if ($Kind -eq 'TaskID') { $value = [string]$task.TaskID }
+    else {
+        $user = Get-TaskUser -Task $task
+        $value = if ($null -eq $user) { '' } else { [string]$user.SamAccountName }
+    }
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        [System.Windows.MessageBox]::Show($window,'No value available for the selected task.','Copy','OK','Information') | Out-Null
+        return
+    }
+    try { [System.Windows.Clipboard]::SetText($value); $txtStatus.Text = ('Copied {0} for Task {1}.' -f $Kind,$task.TaskID) }
+    catch { [System.Windows.MessageBox]::Show($window,$_.Exception.Message,'Clipboard Error','OK','Error') | Out-Null }
 }
 
 function Add-TaskIDs {
@@ -2797,8 +2930,18 @@ $disarmMenuItem = [System.Windows.Controls.MenuItem]::new()
 $disarmMenuItem.Header = 'Disarm EMOLST Script'
 $copySummaryMenuItem = [System.Windows.Controls.MenuItem]::new()
 $copySummaryMenuItem.Header = 'Copy EMOLST Summary'
+$detailsMenuItem = [System.Windows.Controls.MenuItem]::new()
+$detailsMenuItem.Header = 'View Task Details...'
+$copyTaskIdMenuItem = [System.Windows.Controls.MenuItem]::new()
+$copyTaskIdMenuItem.Header = 'Copy Task ID'
+$copyAccountMenuItem = [System.Windows.Controls.MenuItem]::new()
+$copyAccountMenuItem.Header = 'Copy SamAccount'
 $removeTaskMenuItem = [System.Windows.Controls.MenuItem]::new()
 $removeTaskMenuItem.Header = 'Remove Task'
+[void]$taskMenu.Items.Add($detailsMenuItem)
+[void]$taskMenu.Items.Add($copyTaskIdMenuItem)
+[void]$taskMenu.Items.Add($copyAccountMenuItem)
+[void]$taskMenu.Items.Add(([System.Windows.Controls.Separator]::new()))
 [void]$taskMenu.Items.Add($armMenuItem)
 [void]$taskMenu.Items.Add($disarmMenuItem)
 [void]$taskMenu.Items.Add(([System.Windows.Controls.Separator]::new()))
@@ -2807,6 +2950,10 @@ $removeTaskMenuItem.Header = 'Remove Task'
 [void]$taskMenu.Items.Add($removeTaskMenuItem)
 $taskMenu.Add_Opened({
     $task = $gridTasks.SelectedItem
+    $detailsMenuItem.IsEnabled = ($null -ne $task)
+    $copyTaskIdMenuItem.IsEnabled = ($null -ne $task)
+    $linked = if ($null -ne $task) { Get-TaskUser -Task $task } else { $null }
+    $copyAccountMenuItem.IsEnabled = ($null -ne $linked -and -not [string]::IsNullOrWhiteSpace([string]$linked.SamAccountName))
     $armMenuItem.IsEnabled = ($null -ne $task -and $task.EmolstReviewApplied -eq $true)
     $disarmMenuItem.IsEnabled = ($null -ne $task)
     $removeTaskMenuItem.IsEnabled = ($null -ne $task)
@@ -2814,6 +2961,9 @@ $taskMenu.Add_Opened({
     $copySummaryMenuItem.ToolTip = if ($copySummaryMenuItem.IsEnabled) { 'Copy and save the reviewed EMOLST fields.' } else { 'Apply Create EMOLST Data first.' }
     $armMenuItem.ToolTip = if ($armMenuItem.IsEnabled) { 'Load the selected task into Clavier.' } else { 'Run Create EMOLST Data and Apply to Tasks first.' }
 })
+$detailsMenuItem.Add_Click({ Show-SelectedTaskDetails })
+$copyTaskIdMenuItem.Add_Click({ Copy-SelectedTaskValue -Kind TaskID })
+$copyAccountMenuItem.Add_Click({ Copy-SelectedTaskValue -Kind SamAccount })
 $armMenuItem.Add_Click({
     $task = $gridTasks.SelectedItem
     if ($null -ne $task) { Invoke-EmolstClavier -Task $task -Arm $true }
@@ -2892,6 +3042,37 @@ $removeTaskMenuItem.Add_Click({
     }
 })
 $gridTasks.ContextMenu = $taskMenu
+
+# Phase 3 shortcuts: F4 details; Ctrl+F search; Ctrl+Shift+T task ID;
+# Ctrl+Shift+U SamAccount. Key handling is on main window only.
+$btnTaskDetails.Add_Click({ Show-SelectedTaskDetails })
+$gridTasks.Add_MouseDoubleClick({
+    param($sender,$eventArgs)
+    $element = $eventArgs.OriginalSource -as [System.Windows.DependencyObject]
+    while ($null -ne $element -and -not ($element -is [System.Windows.Controls.DataGridRow])) {
+        $element = [System.Windows.Media.VisualTreeHelper]::GetParent($element)
+    }
+    if ($element -is [System.Windows.Controls.DataGridRow]) {
+        $gridTasks.SelectedItem = $element.Item
+        Show-SelectedTaskDetails
+    }
+})
+$window.Add_PreviewKeyDown({
+    param($sender,$eventArgs)
+    $key = $eventArgs.Key
+    $modifiers = [System.Windows.Input.Keyboard]::Modifiers
+    $ctrl = (($modifiers -band [System.Windows.Input.ModifierKeys]::Control) -ne 0)
+    $shift = (($modifiers -band [System.Windows.Input.ModifierKeys]::Shift) -ne 0)
+    if ($key -eq [System.Windows.Input.Key]::F4) {
+        $eventArgs.Handled = $true; Show-SelectedTaskDetails
+    } elseif ($ctrl -and -not $shift -and $key -eq [System.Windows.Input.Key]::F) {
+        $eventArgs.Handled = $true; [void]$txtTaskSearch.Focus(); $txtTaskSearch.SelectAll()
+    } elseif ($ctrl -and $shift -and $key -eq [System.Windows.Input.Key]::T) {
+        $eventArgs.Handled = $true; Copy-SelectedTaskValue -Kind TaskID
+    } elseif ($ctrl -and $shift -and $key -eq [System.Windows.Input.Key]::U) {
+        $eventArgs.Handled = $true; Copy-SelectedTaskValue -Kind SamAccount
+    }
+})
 
 $gridTasks.Add_SelectionChanged({
     Update-TaskDetails
